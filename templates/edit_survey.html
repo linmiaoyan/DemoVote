@@ -1,0 +1,448 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>编辑问卷：{{ survey.name }}</h2>
+        <a href="{{ url_for('admin') }}" class="btn btn-secondary">返回问卷列表</a>
+    </div>
+    
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <!-- 基本信息编辑 -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">基本信息</h5>
+        </div>
+        <div class="card-body">
+            <form action="{{ url_for('update_survey_info', survey_id=survey.id) }}" method="post">
+                <div class="mb-3">
+                    <label for="survey_name" class="form-label">问卷名称</label>
+                    <input type="text" class="form-control" id="survey_name" name="survey_name" 
+                           value="{{ survey.name }}" required>
+                </div>
+                <div class="mb-3">
+                    <label for="survey_introduction" class="form-label">问卷简介</label>
+                    <textarea class="form-control" id="survey_introduction" name="survey_introduction" 
+                              rows="3">{{ survey.introduction or '' }}</textarea>
+                    <small class="text-muted">非必填项</small>
+                </div>
+                <div class="mb-3">
+                    <label for="subjective_question_prompt" class="form-label">主观题说明文字</label>
+                    <textarea class="form-control" id="subjective_question_prompt" name="subjective_question_prompt" 
+                              rows="3">{{ survey.subjective_question_prompt or '' }}</textarea>
+                    <small class="text-muted">非必填项</small>
+                </div>
+                {% if survey.type == 'table' %}
+                <div class="mb-3">
+                    <label for="table_option_count" class="form-label">选项数量</label>
+                    <select class="form-select" id="table_option_count" name="table_option_count" required>
+                        <option value="2" {% if survey.table_option_count==2 %}selected{% endif %}>2项 (A/B)</option>
+                        <option value="3" {% if survey.table_option_count==3 %}selected{% endif %}>3项 (A/B/C)</option>
+                        <option value="4" {% if survey.table_option_count==4 %}selected{% endif %}>4项 (A/B/C/D)</option>
+                        <option value="5" {% if survey.table_option_count==5 %}selected{% endif %}>5项 (A/B/C/D/E)</option>
+                    </select>
+                    <small class="text-muted">修改选项数量会影响所有问题</small>
+                </div>
+                {% endif %}
+                <button type="submit" class="btn btn-primary">保存基本信息</button>
+            </form>
+        </div>
+    </div>
+
+    {% if survey.type == 'single_choice' %}
+        <!-- 单选题问卷：问题管理 -->
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">问题管理</h5>
+                <button type="button" class="btn btn-sm btn-success" 
+                        onclick="toggleCollapse('addQuestionForm')">添加问题</button>
+            </div>
+            <div class="card-body">
+                <!-- 添加问题表单 -->
+                <div class="mb-3" id="addQuestionForm" style="display: none;">
+                    <div class="card card-body bg-light">
+                        <form action="{{ url_for('create_single_choice_questions', survey_id=survey.id) }}" method="post">
+                            <input type="hidden" name="action" value="add_single">
+                            <div class="mb-3">
+                                <label for="content" class="form-label">问题内容</label>
+                                <textarea class="form-control" id="content" name="content" rows="2" required></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label for="option_count" class="form-label">选项数量</label>
+                                <select class="form-select" id="option_count" name="option_count">
+                                    <option value="2">2个选项 (A/B)</option>
+                                    <option value="3">3个选项 (A/B/C)</option>
+                                    <option value="4" selected>4个选项 (A/B/C/D)</option>
+                                    <option value="5">5个选项 (A/B/C/D/E)</option>
+                                </select>
+                            </div>
+                            <button type="submit" class="btn btn-primary">添加问题</button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- 批量添加问题 -->
+                <div class="mb-3">
+                    <button type="button" class="btn btn-sm btn-info" 
+                            onclick="toggleCollapse('batchAddForm')">批量添加问题</button>
+                </div>
+                <div class="mb-3" id="batchAddForm" style="display: none;">
+                    <div class="card card-body bg-light">
+                        <form action="{{ url_for('create_single_choice_questions', survey_id=survey.id) }}" method="post">
+                            <input type="hidden" name="action" value="import_list">
+                            <div class="mb-3">
+                                <label for="question_list" class="form-label">问题列表（每行一个问题）</label>
+                                <textarea class="form-control" id="question_list" name="question_list" 
+                                          rows="10" placeholder="每行输入一个问题，例如：&#10;问题1&#10;问题2&#10;问题3"></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label for="option_count_batch" class="form-label">批量问题选项数量</label>
+                                <select class="form-select" id="option_count_batch" name="option_count_batch">
+                                    <option value="2">2个选项 (A/B)</option>
+                                    <option value="3">3个选项 (A/B/C)</option>
+                                    <option value="4" selected>4个选项 (A/B/C/D)</option>
+                                    <option value="5">5个选项 (A/B/C/D/E)</option>
+                                </select>
+                            </div>
+                            <button type="submit" class="btn btn-success">批量添加</button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- 问题列表 -->
+                {% if questions %}
+                <form id="batchDeleteForm" action="{{ url_for('batch_delete_questions') }}" method="post">
+                    <input type="hidden" name="survey_id" value="{{ survey.id }}">
+                    <div class="mb-3 d-flex justify-content-between align-items-center">
+                        <div>
+                            <button type="button" class="btn btn-sm btn-secondary" onclick="toggleSelectAll()">全选/取消全选</button>
+                            <button type="submit" class="btn btn-sm btn-danger" 
+                                    onclick="return confirm('确定要删除选中的问题吗？此操作不可撤销！');">
+                                批量删除选中
+                            </button>
+                        </div>
+                        <span class="text-muted" id="selected-count">已选择 0 个问题</span>
+                    </div>
+                    <div class="list-group">
+                        {% for question in questions %}
+                        <div class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div style="flex: 1; display: flex; align-items: start;">
+                                    <input type="checkbox" class="form-check-input mt-2 me-2 question-checkbox" 
+                                           name="question_ids" value="{{ question.id }}" 
+                                           onchange="updateSelectedCount()">
+                                    <div style="flex: 1;">
+                                        <h6 class="mb-1">{{ question.content }}</h6>
+                                        <p class="mb-0 text-muted">
+                                            <small>选项数量: {{ question.option_count }}，选项: {{ 'ABCDE'[:question.option_count] }}</small>
+                                        </p>
+                                    </div>
+                                </div>
+                                <div class="btn-group">
+                                    <button type="button" class="btn btn-sm btn-primary" 
+                                            onclick="editQuestion({{ question.id }}, {{ question.content|tojson }}, {{ question.option_count }})">
+                                        编辑
+                                    </button>
+                                    <form action="{{ url_for('delete_question', question_id=question.id) }}" method="post" 
+                                          onsubmit="return confirm('确定要删除这个问题吗？');" style="display:inline;">
+                                        <button type="submit" class="btn btn-sm btn-danger">删除</button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </form>
+                {% else %}
+                <p class="text-muted">暂无问题，请添加问题</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- 编辑问题的表单 -->
+        <div class="card mb-4" id="editQuestionCard" style="display: none;">
+            <div class="card-header">
+                <h5 class="mb-0">编辑问题</h5>
+            </div>
+            <div class="card-body">
+                <form id="editQuestionForm" method="post">
+                    <div class="mb-3">
+                        <label for="edit_question_content" class="form-label">问题内容</label>
+                        <textarea class="form-control" id="edit_question_content" name="content" rows="2" required></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_option_count" class="form-label">选项数量</label>
+                        <select class="form-select" id="edit_option_count" name="option_count">
+                            <option value="2">2个选项 (A/B)</option>
+                            <option value="3">3个选项 (A/B/C)</option>
+                            <option value="4">4个选项 (A/B/C/D)</option>
+                            <option value="5">5个选项 (A/B/C/D/E)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <button type="submit" class="btn btn-primary">保存</button>
+                        <button type="button" class="btn btn-secondary" onclick="cancelEditQuestion()">取消</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- 选项限制设置 -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">选项限制设置</h5>
+            </div>
+            <div class="card-body">
+                <form action="{{ url_for('set_option_limits', survey_id=survey.id) }}" method="post">
+                    <div class="row">
+                        {% for option in 'ABCDE'[:2] %}
+                        <div class="col-md-4 mb-3">
+                            <label for="limit_{{ option }}" class="form-label">选项 {{ option }} 最大选择次数</label>
+                            <input type="number" class="form-control" id="limit_{{ option }}" 
+                                   name="limit_{{ option }}" min="0" 
+                                   value="{{ (survey.option_limits or {}).get(option, '') }}"
+                                   placeholder="不限制请留空">
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <button type="submit" class="btn btn-primary">保存限制设置</button>
+                </form>
+            </div>
+        </div>
+
+    {% else %}
+        <!-- 表格问卷：问题管理 -->
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">问题管理</h5>
+                <button type="button" class="btn btn-sm btn-success" 
+                        onclick="toggleCollapse('addTableQuestionForm')">添加问题</button>
+            </div>
+            <div class="card-body">
+                <!-- 添加问题表单 -->
+                <div class="mb-3" id="addTableQuestionForm" style="display: none;">
+                    <div class="card card-body bg-light">
+                        <form action="{{ url_for('create_table_questions', survey_id=survey.id) }}" method="post">
+                            <div class="mb-3">
+                                <label for="content" class="form-label">问题内容（列标题）</label>
+                                <textarea class="form-control" id="content" name="content" rows="2" required></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-primary">添加问题</button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- 问题列表 -->
+                {% if questions %}
+                <form id="batchDeleteTableForm" action="{{ url_for('batch_delete_questions') }}" method="post">
+                    <input type="hidden" name="survey_id" value="{{ survey.id }}">
+                    <div class="mb-3 d-flex justify-content-between align-items-center">
+                        <div>
+                            <button type="button" class="btn btn-sm btn-secondary" onclick="toggleSelectAllTable()">全选/取消全选</button>
+                            <button type="submit" class="btn btn-sm btn-danger" 
+                                    onclick="return confirm('确定要删除选中的问题吗？此操作不可撤销！');">
+                                批量删除选中
+                            </button>
+                        </div>
+                        <span class="text-muted" id="selected-table-count">已选择 0 个问题</span>
+                    </div>
+                    <div class="list-group">
+                        {% for question in questions %}
+                        <div class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div style="flex: 1; display: flex; align-items: start;">
+                                    <input type="checkbox" class="form-check-input mt-2 me-2 table-question-checkbox" 
+                                           name="question_ids" value="{{ question.id }}" 
+                                           onchange="updateSelectedTableCount()">
+                                    <div style="flex: 1;">
+                                        <h6 class="mb-1">{{ question.content }}</h6>
+                                    </div>
+                                </div>
+                                <div class="btn-group">
+                                    <button type="button" class="btn btn-sm btn-primary" 
+                                            onclick="editTableQuestion({{ question.id }}, {{ question.content|tojson }})">
+                                        编辑
+                                    </button>
+                                    <form action="{{ url_for('delete_question', question_id=question.id) }}" method="post" 
+                                          onsubmit="return confirm('确定要删除这个问题吗？');" style="display:inline;">
+                                        <button type="submit" class="btn btn-sm btn-danger">删除</button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </form>
+                {% else %}
+                <p class="text-muted">暂无问题，请添加问题</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- 编辑表格问题的表单 -->
+        <div class="card mb-4" id="editTableQuestionCard" style="display: none;">
+            <div class="card-header">
+                <h5 class="mb-0">编辑问题</h5>
+            </div>
+            <div class="card-body">
+                <form id="editTableQuestionForm" method="post">
+                    <div class="mb-3">
+                        <label for="edit_table_question_content" class="form-label">问题内容（列标题）</label>
+                        <textarea class="form-control" id="edit_table_question_content" name="content" rows="2" required></textarea>
+                    </div>
+                    <div>
+                        <button type="submit" class="btn btn-primary">保存</button>
+                        <button type="button" class="btn btn-secondary" onclick="cancelEditTableQuestion()">取消</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- 人名管理 -->
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">人名管理</h5>
+                <button type="button" class="btn btn-sm btn-success" 
+                        onclick="toggleCollapse('addRespondentForm')">添加人名</button>
+            </div>
+            <div class="card-body">
+                <!-- 添加人名表单 -->
+                <div class="mb-3" id="addRespondentForm" style="display: none;">
+                    <div class="card card-body bg-light">
+                        <form action="{{ url_for('manage_table_respondents', survey_id=survey.id) }}" method="post">
+                            <input type="hidden" name="action" value="add_single">
+                            <div class="mb-3">
+                                <label for="name" class="form-label">人名</label>
+                                <input type="text" class="form-control" id="name" name="name" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary">添加</button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- 批量导入 -->
+                <div class="mb-3">
+                    <button type="button" class="btn btn-sm btn-info" 
+                            onclick="toggleCollapse('batchImportForm')">批量导入人名</button>
+                </div>
+                <div class="mb-3" id="batchImportForm" style="display: none;">
+                    <div class="card card-body bg-light">
+                        <form action="{{ url_for('manage_table_respondents', survey_id=survey.id) }}" method="post">
+                            <input type="hidden" name="action" value="import_list">
+                            <div class="mb-3">
+                                <label for="name_list" class="form-label">人名列表（每行一个人名）</label>
+                                <textarea class="form-control" id="name_list" name="name_list" 
+                                          rows="10" placeholder="每行输入一个人名，例如：&#10;叶丹&#10;刘海岚&#10;黄青青"></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-success">导入</button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- 人名列表 -->
+                {% if respondents %}
+                <div class="list-group">
+                    {% for respondent in respondents %}
+                    <div class="list-group-item">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span>{{ respondent.name }}</span>
+                            <form action="{{ url_for('delete_respondent', respondent_id=respondent.id) }}" method="post" 
+                                  onsubmit="return confirm('确定要删除 \"{{ respondent.name }}\" 吗？');" style="display:inline;">
+                                <button type="submit" class="btn btn-sm btn-danger">删除</button>
+                            </form>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted">暂无人名，请添加人名</p>
+                {% endif %}
+            </div>
+        </div>
+    {% endif %}
+</div>
+
+<script>
+    // 编辑单选题问题
+    function editQuestion(questionId, content, optionCount) {
+        document.getElementById('edit_question_content').value = content;
+        document.getElementById('edit_option_count').value = optionCount;
+        document.getElementById('editQuestionForm').action = "{{ url_for('update_question', question_id=0) }}".replace('0', questionId);
+        
+        // 显示编辑表单
+        const editCard = document.getElementById('editQuestionCard');
+        editCard.style.display = 'block';
+        editCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    // 取消编辑问题
+    function cancelEditQuestion() {
+        document.getElementById('editQuestionCard').style.display = 'none';
+    }
+
+    // 编辑表格问题
+    function editTableQuestion(questionId, content) {
+        document.getElementById('edit_table_question_content').value = content;
+        document.getElementById('editTableQuestionForm').action = "{{ url_for('update_question', question_id=0) }}".replace('0', questionId);
+        
+        // 显示编辑表单
+        const editCard = document.getElementById('editTableQuestionCard');
+        editCard.style.display = 'block';
+        editCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    // 取消编辑表格问题
+    function cancelEditTableQuestion() {
+        document.getElementById('editTableQuestionCard').style.display = 'none';
+    }
+
+    // 切换折叠面板
+    function toggleCollapse(elementId) {
+        const element = document.getElementById(elementId);
+        if (element) {
+            element.style.display = element.style.display === 'none' ? 'block' : 'none';
+        }
+    }
+
+    // 全选/取消全选（单选题）
+    function toggleSelectAll() {
+        const checkboxes = document.querySelectorAll('.question-checkbox');
+        const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+        checkboxes.forEach(cb => cb.checked = !allChecked);
+        updateSelectedCount();
+    }
+
+    // 更新选中数量（单选题）
+    function updateSelectedCount() {
+        const checkboxes = document.querySelectorAll('.question-checkbox:checked');
+        const countElement = document.getElementById('selected-count');
+        if (countElement) {
+            countElement.textContent = `已选择 ${checkboxes.length} 个问题`;
+        }
+    }
+
+    // 全选/取消全选（表格题）
+    function toggleSelectAllTable() {
+        const checkboxes = document.querySelectorAll('.table-question-checkbox');
+        const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+        checkboxes.forEach(cb => cb.checked = !allChecked);
+        updateSelectedTableCount();
+    }
+
+    // 更新选中数量（表格题）
+    function updateSelectedTableCount() {
+        const checkboxes = document.querySelectorAll('.table-question-checkbox:checked');
+        const countElement = document.getElementById('selected-table-count');
+        if (countElement) {
+            countElement.textContent = `已选择 ${checkboxes.length} 个问题`;
+        }
+    }
+</script>
+{% endblock %}
