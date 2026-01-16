@@ -523,16 +523,28 @@ def db_worker():
                 submit_queue.task_done()
             except Exception as e:
                 logger.error(f"数据库写入失败: {e}", exc_info=True)
+                submit_queue.task_done()  # 确保即使出错也标记任务完成
 
 threading.Thread(target=db_worker, daemon=True).start()
 
-def save_vote_to_db(vote_data):
+def save_vote_to_db(vote_data, retry_count=0):
+    """保存投票到数据库，带重试机制
+    
+    Args:
+        vote_data: 投票数据字典
+        retry_count: 当前重试次数（默认最大重试3次）
+    """
+    MAX_RETRIES = 3
     Session = scoped_session(sessionmaker(bind=db.engine))
     session = Session()
     try:
         survey_id = vote_data['survey_id']
         user_id = vote_data['user_id']
         survey = session.get(Survey, survey_id)
+        if not survey:
+            logger.error(f"问卷不存在: survey_id={survey_id}")
+            return
+        
         # 删除旧投票
         question_ids = [q.id for q in session.query(Question).filter_by(survey_id=survey_id).all()]
         session.query(Vote).filter(Vote.user_id == user_id, Vote.question_id.in_(question_ids)).delete(synchronize_session='fetch')
@@ -552,11 +564,21 @@ def save_vote_to_db(vote_data):
         
         # 提交事务
         session.commit()
+        if retry_count > 0:
+            logger.info(f"投票数据成功写入（经过 {retry_count} 次重试）: user_id={user_id}, survey_id={survey_id}")
     except Exception as e:
-        logger.error(f"数据库写入异常: user_id={vote_data['user_id']}, survey_id={vote_data['survey_id']}, 错误: {e}", exc_info=True)
-        # 遇到异常时尝试重新入队
-        submit_queue.put((save_vote_to_db, (vote_data,), {}))
-        time.sleep(0.5)
+        logger.error(f"数据库写入异常: user_id={vote_data['user_id']}, survey_id={vote_data['survey_id']}, 重试次数={retry_count}, 错误: {e}", exc_info=True)
+        session.rollback()
+        
+        # 如果未超过最大重试次数，则重新入队
+        if retry_count < MAX_RETRIES:
+            try:
+                submit_queue.put_nowait((save_vote_to_db, (vote_data, retry_count + 1), {}))
+                time.sleep(0.5 * (retry_count + 1))  # 指数退避
+            except queue.Full:
+                logger.error(f"队列已满，无法重试: user_id={vote_data['user_id']}, survey_id={vote_data['survey_id']}")
+        else:
+            logger.error(f"达到最大重试次数，放弃写入: user_id={vote_data['user_id']}, survey_id={vote_data['survey_id']}")
     finally:
         session.close()
 
@@ -620,7 +642,7 @@ def submit_vote(survey_id):
     
     # 将投票数据入队等待写入数据库
     submit_queue.put((save_vote_to_db, (vote_data,), {}))
-    flash('您的投票已排队，稍后会被写入数据库。', 'info')
+    flash('您的投票已提交成功！', 'success')
     return redirect(url_for('thank_you'))
 
 @app.route('/thank_you')
