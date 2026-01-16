@@ -31,17 +31,37 @@ if not exist ".git" (
     
     REM 设置默认分支为main（如果Git版本支持）
     git branch -M main >nul 2>&1
-    
-    REM 添加远程仓库（如果还没有）
-    git remote -v | findstr "origin" >nul 2>&1
+)
+
+REM 检查并配置远程仓库
+git remote -v | findstr "origin" >nul 2>&1
+if %errorlevel% neq 0 (
+    echo [提示] 未检测到远程仓库，正在添加...
+    git remote add origin https://github.com/linmiaoyan/DemoVote.git
     if %errorlevel% neq 0 (
-        echo [提示] 添加远程仓库...
+        echo [警告] 添加远程仓库失败，尝试删除后重新添加...
+        git remote remove origin >nul 2>&1
         git remote add origin https://github.com/linmiaoyan/DemoVote.git
         if %errorlevel% neq 0 (
-            echo [警告] 添加远程仓库失败，但可以继续
-        ) else (
-            echo [成功] 远程仓库已添加
+            echo [错误] 添加远程仓库失败
+            pause
+            exit /b 1
         )
+    )
+    echo [成功] 远程仓库已添加
+    echo.
+) else (
+    REM 检查远程仓库URL是否正确
+    git remote get-url origin | findstr "linmiaoyan/DemoVote" >nul 2>&1
+    if %errorlevel% neq 0 (
+        echo [提示] 远程仓库URL不正确，正在更新...
+        git remote set-url origin https://github.com/linmiaoyan/DemoVote.git
+        if %errorlevel% neq 0 (
+            echo [错误] 更新远程仓库URL失败
+            pause
+            exit /b 1
+        )
+        echo [成功] 远程仓库URL已更新
         echo.
     )
 )
@@ -121,6 +141,10 @@ if %errorlevel% equ 0 (
     echo   2. 认证失败（需要Personal Access Token）
     echo   3. 权限不足
     echo   4. 分支名称不匹配（当前分支: !CURRENT_BRANCH!）
+    echo   5. 远程仓库配置错误
+    echo.
+    echo [提示] 检查远程仓库配置：
+    git remote -v
     echo.
 )
 
