@@ -29,6 +29,9 @@ if not exist ".git" (
     echo [成功] Git仓库初始化完成
     echo.
     
+    REM 设置默认分支为main（如果Git版本支持）
+    git branch -M main >nul 2>&1
+    
     REM 添加远程仓库（如果还没有）
     git remote -v | findstr "origin" >nul 2>&1
     if %errorlevel% neq 0 (
@@ -40,6 +43,23 @@ if not exist ".git" (
             echo [成功] 远程仓库已添加
         )
         echo.
+    )
+)
+
+REM 检测当前分支名称
+for /f "tokens=*" %%i in ('git branch --show-current 2^>nul') do set CURRENT_BRANCH=%%i
+if "!CURRENT_BRANCH!"=="" (
+    REM 如果没有分支，尝试获取默认分支名
+    for /f "tokens=*" %%i in ('git symbolic-ref --short HEAD 2^>nul') do set CURRENT_BRANCH=%%i
+)
+if "!CURRENT_BRANCH!"=="" (
+    REM 如果还是获取不到，检查是否有master分支
+    git branch | findstr "master" >nul 2>&1
+    if %errorlevel% equ 0 (
+        set CURRENT_BRANCH=master
+    ) else (
+        REM 默认使用main
+        set CURRENT_BRANCH=main
     )
 )
 
@@ -73,14 +93,16 @@ echo [成功] 代码已提交
 echo.
 
 echo [步骤3] 推送到GitHub
+echo [提示] 当前分支: !CURRENT_BRANCH!
 REM 检查是否有提交（如果是新仓库）
 git rev-parse --verify HEAD >nul 2>&1
 if %errorlevel% neq 0 (
     REM 新仓库，没有提交历史，需要设置上游分支
-    git push -u origin main
+    echo [提示] 首次推送，设置上游分支...
+    git push -u origin !CURRENT_BRANCH!
 ) else (
     REM 已有提交历史
-    git push origin main
+    git push origin !CURRENT_BRANCH!
 )
 if %errorlevel% equ 0 (
     echo.
@@ -95,9 +117,10 @@ if %errorlevel% equ 0 (
     echo [错误] 推送失败
     echo.
     echo 可能的原因：
-    echo 1. 网络连接问题
-    echo 2. 认证失败（需要Personal Access Token）
-    echo 3. 权限不足
+    echo   1. 网络连接问题
+    echo   2. 认证失败（需要Personal Access Token）
+    echo   3. 权限不足
+    echo   4. 分支名称不匹配（当前分支: !CURRENT_BRANCH!）
     echo.
 )
 
