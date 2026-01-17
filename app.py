@@ -19,6 +19,7 @@ import queue
 import atexit
 from sqlalchemy.orm import scoped_session, sessionmaker
 import logging
+import socket
 
 logger = logging.getLogger(__name__)
 import json
@@ -46,6 +47,25 @@ app.config['ADMIN_GATE_KEY'] = ADMIN_GATE_KEY
 # 设置时区为北京时间
 def get_current_time():
     return datetime.utcnow() + timedelta(hours=8)
+
+def get_local_ip():
+    """获取本机IP地址"""
+    try:
+        # 创建一个UDP socket来获取本机IP
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        # 不实际发送数据，只是用来获取本机IP
+        s.connect(('8.8.8.8', 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        try:
+            # 备用方法：通过hostname获取
+            hostname = socket.gethostname()
+            ip = socket.gethostbyname(hostname)
+            return ip
+        except Exception:
+            return '127.0.0.1'
 
 def get_public_host():
     """动态获取PUBLIC_HOST，如果未设置则从请求中获取"""
@@ -91,6 +111,7 @@ class Survey(db.Model):
     is_active = db.Column(db.Boolean, default=True)
     option_limits = db.Column(db.JSON, nullable=True)  # 新增：选项限制，格式为 {"A": 7, "B": 7, ...}
     table_option_count = db.Column(db.Integer, default=3)  # 新增：表格问卷选项数量，默认3
+    enable_quick_fill = db.Column(db.Boolean, default=True)  # 新增：是否启用快填功能，默认启用
     questions = db.relationship('Question', backref='survey', lazy=True)
     qr_codes = db.relationship('QRCode', backref='survey', lazy=True)
 
@@ -185,12 +206,14 @@ def create_survey():
         flash('请填写问卷名称并选择类型', 'danger')
         return redirect(url_for('admin'))
     
+    enable_quick_fill = request.form.get('enable_quick_fill') == 'on'
     survey = Survey(
         name=survey_name, 
         type=survey_type, 
         introduction=survey_introduction, 
         subjective_question_prompt=subjective_question_prompt,
-        table_option_count=table_option_count if survey_type == 'table' else None
+        table_option_count=table_option_count if survey_type == 'table' else None,
+        enable_quick_fill=enable_quick_fill
     )
     db.session.add(survey)
     db.session.commit()
@@ -458,6 +481,7 @@ def preview_survey(survey_id):
         respondents=respondents,
         subjective_question_prompt=survey.subjective_question_prompt,
         table_option_count=table_option_count,
+        enable_quick_fill=survey.enable_quick_fill,
         is_preview=True
     )
 
@@ -479,7 +503,8 @@ def vote(survey_id):
         questions=questions,
         respondents=respondents,
         subjective_question_prompt=survey.subjective_question_prompt,
-        table_option_count=table_option_count
+        table_option_count=table_option_count,
+        enable_quick_fill=survey.enable_quick_fill
     )
 
 @app.route('/admin/set_option_limits/<int:survey_id>', methods=['POST'])
@@ -792,7 +817,8 @@ def copy_survey(survey_id):
             introduction=original_survey.introduction,
             subjective_question_prompt=original_survey.subjective_question_prompt,
             option_limits=original_survey.option_limits.copy() if original_survey.option_limits else None,
-            table_option_count=original_survey.table_option_count
+            table_option_count=original_survey.table_option_count,
+            enable_quick_fill=original_survey.enable_quick_fill
         )
         db.session.add(new_survey)
         db.session.flush()  # 获取新问卷的ID
@@ -890,6 +916,7 @@ def update_survey_info(survey_id):
     survey.name = request.form.get('survey_name', '').strip()
     survey.introduction = request.form.get('survey_introduction', '').strip() or None
     survey.subjective_question_prompt = request.form.get('subjective_question_prompt', '').strip() or None
+    survey.enable_quick_fill = request.form.get('enable_quick_fill') == 'on'
     
     if survey.type == 'table':
         table_option_count = int(request.form.get('table_option_count', 3))
@@ -1027,6 +1054,24 @@ if __name__ == '__main__':
     
     with app.app_context():
         db.create_all()
+        
+        # 数据库迁移：添加缺失的列
+        try:
+            from sqlalchemy import inspect, text
+            inspector = inspect(db.engine)
+            columns = [col['name'] for col in inspector.get_columns('survey')]
+            
+            # 检查并添加 enable_quick_fill 列（如果不存在）
+            if 'enable_quick_fill' not in columns:
+                logger.info("检测到数据库需要迁移：添加 enable_quick_fill 列")
+                # SQLite 中 BOOLEAN 存储为 INTEGER (0 或 1)
+                db.session.execute(text('ALTER TABLE survey ADD COLUMN enable_quick_fill INTEGER DEFAULT 1'))
+                db.session.commit()
+                logger.info("数据库迁移完成：已添加 enable_quick_fill 列")
+        except Exception as e:
+            logger.warning(f"数据库迁移检查失败（可能是新数据库）: {e}")
+            db.session.rollback()
+        
         # 创建管理员账号
         if not User.query.filter_by(username='admin').first():
             admin = User(
@@ -1038,8 +1083,20 @@ if __name__ == '__main__':
             db.session.commit()
             logger.info("管理员账号已创建: admin / admin123")
     
+    # 获取实际IP地址用于显示
+    display_host = get_local_ip() if HOST == '0.0.0.0' else HOST
+    
     logger.info(f"启动服务器: http://{HOST}:{PORT}")
     logger.info(f"数据库路径: {DATABASE_PATH}")
-    logger.info(f"管理员入口: http://{HOST}:{PORT}/admin_login?k={ADMIN_GATE_KEY}")
+    admin_url = f"http://{display_host}:{PORT}/admin_login?k={ADMIN_GATE_KEY}"
+    logger.info(f"管理员入口: {admin_url}")
+    
+    # 在控制台醒目输出管理员入口地址
+    print("\n" + "="*60)
+    print("="*60)
+    print(f"  管理员登录入口地址:")
+    print(f"  {admin_url}")
+    print("="*60)
+    print("="*60 + "\n")
     
     app.run(host=HOST, port=PORT, debug=DEBUG, use_reloader=False)

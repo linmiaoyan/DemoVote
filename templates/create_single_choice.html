@@ -12,7 +12,7 @@
         <div class="card-body">
             <form action="{{ url_for('set_option_limits', survey_id=survey.id) }}" method="post">
                 <div class="row">
-                    {% for option in 'ABCDE'[:2] %}
+                    {% for option in 'ABCDE' %}
                     <div class="col-md-4 mb-3">
                         <label for="limit_{{ option }}" class="form-label">选项 {{ option }} 最大选择次数</label>
                         <input type="number" class="form-control" id="limit_{{ option }}" 

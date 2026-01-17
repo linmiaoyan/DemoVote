@@ -51,6 +51,15 @@
                     <small class="text-muted">修改选项数量会影响所有问题</small>
                 </div>
                 {% endif %}
+                <div class="mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="enable_quick_fill" id="enable_quick_fill" 
+                               {% if survey.enable_quick_fill %}checked{% endif %}>
+                        <label class="form-check-label" for="enable_quick_fill">
+                            启用快填功能（按住快填按钮自动选择第一个选项）
+                        </label>
+                    </div>
+                </div>
                 <button type="submit" class="btn btn-primary">保存基本信息</button>
             </form>
         </div>
@@ -132,28 +141,31 @@
                     </div>
                     <div class="list-group">
                         {% for question in questions %}
-                        <div class="list-group-item">
-                            <div class="d-flex justify-content-between align-items-start">
-                                <div style="flex: 1; display: flex; align-items: start;">
-                                    <input type="checkbox" class="form-check-input mt-2 me-2 question-checkbox" 
-                                           name="question_ids" value="{{ question.id }}" 
-                                           onchange="updateSelectedCount()">
-                                    <div style="flex: 1;">
-                                        <h6 class="mb-1">{{ question.content }}</h6>
-                                        <p class="mb-0 text-muted">
+                        <div class="list-group-item question-item-clickable" 
+                             onclick="toggleQuestionCheckbox(this, {{ question.id }}, event)" 
+                             style="cursor: pointer;">
+                            <div style="display: flex; align-items: start;">
+                                <input type="checkbox" class="form-check-input mt-2 me-2 question-checkbox" 
+                                       name="question_ids" value="{{ question.id }}" 
+                                       onchange="updateSelectedCount()"
+                                       onclick="event.stopPropagation()">
+                                <div style="flex: 1;">
+                                    <h6 class="mb-1">{{ question.content }}</h6>
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span class="text-muted">
                                             <small>选项数量: {{ question.option_count }}，选项: {{ 'ABCDE'[:question.option_count] }}</small>
-                                        </p>
+                                        </span>
+                                        <div class="btn-group" onclick="event.stopPropagation()">
+                                            <button type="button" class="btn btn-sm btn-primary" 
+                                                    onclick="editQuestion({{ question.id }}, {{ question.content|tojson }}, {{ question.option_count }})">
+                                                编辑
+                                            </button>
+                                            <form action="{{ url_for('delete_question', question_id=question.id) }}" method="post" 
+                                                  onsubmit="return confirm('确定要删除这个问题吗？');" style="display:inline;">
+                                                <button type="submit" class="btn btn-sm btn-danger">删除</button>
+                                            </form>
+                                        </div>
                                     </div>
-                                </div>
-                                <div class="btn-group">
-                                    <button type="button" class="btn btn-sm btn-primary" 
-                                            onclick="editQuestion({{ question.id }}, {{ question.content|tojson }}, {{ question.option_count }})">
-                                        编辑
-                                    </button>
-                                    <form action="{{ url_for('delete_question', question_id=question.id) }}" method="post" 
-                                          onsubmit="return confirm('确定要删除这个问题吗？');" style="display:inline;">
-                                        <button type="submit" class="btn btn-sm btn-danger">删除</button>
-                                    </form>
                                 </div>
                             </div>
                         </div>
@@ -202,7 +214,7 @@
             <div class="card-body">
                 <form action="{{ url_for('set_option_limits', survey_id=survey.id) }}" method="post">
                     <div class="row">
-                        {% for option in 'ABCDE'[:2] %}
+                        {% for option in 'ABCDE' %}
                         <div class="col-md-4 mb-3">
                             <label for="limit_{{ option }}" class="form-label">选项 {{ option }} 最大选择次数</label>
                             <input type="number" class="form-control" id="limit_{{ option }}" 
@@ -255,17 +267,20 @@
                     </div>
                     <div class="list-group">
                         {% for question in questions %}
-                        <div class="list-group-item">
+                        <div class="list-group-item question-item-clickable" 
+                             onclick="toggleTableQuestionCheckbox(this, {{ question.id }}, event)" 
+                             style="cursor: pointer;">
                             <div class="d-flex justify-content-between align-items-start">
                                 <div style="flex: 1; display: flex; align-items: start;">
                                     <input type="checkbox" class="form-check-input mt-2 me-2 table-question-checkbox" 
                                            name="question_ids" value="{{ question.id }}" 
-                                           onchange="updateSelectedTableCount()">
+                                           onchange="updateSelectedTableCount()"
+                                           onclick="event.stopPropagation()">
                                     <div style="flex: 1;">
                                         <h6 class="mb-1">{{ question.content }}</h6>
                                     </div>
                                 </div>
-                                <div class="btn-group">
+                                <div class="btn-group" onclick="event.stopPropagation()">
                                     <button type="button" class="btn btn-sm btn-primary" 
                                             onclick="editTableQuestion({{ question.id }}, {{ question.content|tojson }})">
                                         编辑
@@ -444,5 +459,42 @@
             countElement.textContent = `已选择 ${checkboxes.length} 个问题`;
         }
     }
+
+    // 点击整个条目切换复选框（单选题）
+    function toggleQuestionCheckbox(itemElement, questionId, event) {
+        // 如果点击的是按钮或复选框本身，不处理
+        if (event && (event.target.closest('.btn-group') || event.target.closest('.form-check-input'))) {
+            return;
+        }
+        const checkbox = itemElement.querySelector('.question-checkbox');
+        if (checkbox) {
+            checkbox.checked = !checkbox.checked;
+            updateSelectedCount();
+        }
+    }
+
+    // 点击整个条目切换复选框（表格题）
+    function toggleTableQuestionCheckbox(itemElement, questionId, event) {
+        // 如果点击的是按钮或复选框本身，不处理
+        if (event && (event.target.closest('.btn-group') || event.target.closest('.form-check-input'))) {
+            return;
+        }
+        const checkbox = itemElement.querySelector('.table-question-checkbox');
+        if (checkbox) {
+            checkbox.checked = !checkbox.checked;
+            updateSelectedTableCount();
+        }
+    }
 </script>
+
+<style>
+    /* 让问题条目在悬停时显示可点击效果 */
+    .question-item-clickable:hover {
+        background-color: #f8f9fa !important;
+    }
+    
+    .question-item-clickable {
+        transition: background-color 0.2s ease;
+    }
+</style>
 {% endblock %}
