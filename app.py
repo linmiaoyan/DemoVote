@@ -20,6 +20,10 @@ import atexit
 from sqlalchemy.orm import scoped_session, sessionmaker
 import logging
 import socket
+from dotenv import load_dotenv
+
+# 加载 .env 文件
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 import json
@@ -29,14 +33,14 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 INSTANCE_DIR = os.path.join(BASE_DIR, 'instance')
 os.makedirs(INSTANCE_DIR, exist_ok=True)
 
-# 配置：可以通过环境变量覆盖
-PUBLIC_HOST = os.environ.get('PUBLIC_HOST', '')  # 如果为空，将动态获取
-SECRET_KEY = os.environ.get('SECRET_KEY', secrets.token_hex(32))
-ADMIN_GATE_KEY = os.environ.get('ADMIN_GATE_KEY', 'wzkjgz')
+# 配置：优先从 .env 文件读取，如果没有则使用环境变量或默认值
+PUBLIC_HOST = os.getenv('PUBLIC_HOST', '')  # 如果为空，将动态获取
+SECRET_KEY = os.getenv('SECRET_KEY', secrets.token_hex(32))
+ADMIN_GATE_KEY = os.getenv('ADMIN_GATE_KEY', 'wzkjgz')
 DATABASE_PATH = os.path.join(INSTANCE_DIR, 'votes.db')
-HOST = os.environ.get('HOST', '0.0.0.0')
-PORT = int(os.environ.get('PORT', 5005))
-DEBUG = os.environ.get('DEBUG', 'False').lower() == 'true'
+HOST = os.getenv('HOST', '0.0.0.0')
+PORT = int(os.getenv('PORT', 5005))
+DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = SECRET_KEY
@@ -188,7 +192,35 @@ def admin():
     if guard:
         return guard
     surveys = Survey.query.filter_by(is_active=True).all()
-    return render_template('admin.html', surveys=surveys)
+    
+    # 计算每个问卷的数据条数
+    survey_stats = []
+    for survey in surveys:
+        # 计算投票数据条数
+        if survey.type == 'single_choice':
+            vote_count = Vote.query.join(Question).filter(Question.survey_id == survey.id).count()
+        elif survey.type == 'table':
+            vote_count = Vote.query.join(Question).join(TableRespondent).filter(
+                Question.survey_id == survey.id,
+                TableRespondent.survey_id == survey.id
+            ).count()
+        else:
+            vote_count = 0
+        
+        # 计算主观题回答数
+        subjective_count = SubjectiveAnswer.query.filter_by(survey_id=survey.id).count()
+        
+        # 总数据条数
+        total_count = vote_count + subjective_count
+        
+        survey_stats.append({
+            'survey': survey,
+            'vote_count': vote_count,
+            'subjective_count': subjective_count,
+            'total_count': total_count
+        })
+    
+    return render_template('admin.html', survey_stats=survey_stats)
 
 @app.route('/admin/create_survey', methods=['POST'])
 def create_survey():
@@ -675,7 +707,68 @@ def thank_you():
     return render_template('thank_you.html')
 
 @app.route('/admin/results/<int:survey_id>')
-def results(survey_id):
+def view_results(survey_id):
+    guard = ensure_admin_session()
+    if guard:
+        return guard
+    
+    survey = Survey.query.get_or_404(survey_id)
+    
+    # 获取投票数据
+    votes_data = []
+    if survey.type == 'single_choice':
+        votes = Vote.query.join(Question).filter(Question.survey_id == survey_id).order_by(Vote.created_at.desc()).all()
+        for vote in votes:
+            votes_data.append({
+                'user': vote.user.username,
+                'question': vote.question.content,
+                'option': vote.score,
+                'time': vote.created_at
+            })
+    elif survey.type == 'table':
+        votes = Vote.query.join(Question).join(TableRespondent).filter(
+            Question.survey_id == survey_id, 
+            TableRespondent.survey_id == survey_id
+        ).order_by(Vote.created_at.desc()).all()
+        
+        for vote in votes:
+            votes_data.append({
+                'user': vote.user.username,
+                'question': vote.question.content,
+                'respondent': vote.table_respondent.name if vote.table_respondent else None,
+                'option': vote.score,
+                'time': vote.created_at
+            })
+    
+    # 获取主观题回答
+    subjective_answers = SubjectiveAnswer.query.filter_by(survey_id=survey_id).order_by(SubjectiveAnswer.created_at.desc()).all()
+    subjective_data = []
+    for ans in subjective_answers:
+        subjective_data.append({
+            'user': ans.user.username,
+            'content': ans.content,
+            'time': ans.created_at
+        })
+    
+    # 统计数据
+    total_votes = len(votes_data)
+    unique_users = len(set(v['user'] for v in votes_data))
+    unique_respondents = len(set(v.get('respondent') for v in votes_data if v.get('respondent'))) if survey.type == 'table' else 0
+    total_questions = len(survey.questions)
+    total_subjective_answers = len(subjective_data)
+    
+    return render_template('view_results.html', 
+                         survey=survey,
+                         votes_data=votes_data,
+                         subjective_answers=subjective_data,
+                         total_votes=total_votes,
+                         unique_users=unique_users,
+                         unique_respondents=unique_respondents,
+                         total_questions=total_questions,
+                         total_subjective_answers=total_subjective_answers)
+
+@app.route('/admin/download_results/<int:survey_id>')
+def download_results(survey_id):
     guard = ensure_admin_session()
     if guard:
         return guard
@@ -800,6 +893,41 @@ def results(survey_id):
         as_attachment=True,
         download_name=f'vote_results_{survey.name}.xlsx'
     )
+
+@app.route('/admin/delete_results/<int:survey_id>', methods=['POST'])
+def delete_results(survey_id):
+    guard = ensure_admin_session()
+    if guard:
+        return guard
+    
+    survey = Survey.query.get_or_404(survey_id)
+    
+    try:
+        # 删除所有投票数据
+        if survey.type == 'single_choice':
+            votes = Vote.query.join(Question).filter(Question.survey_id == survey_id).all()
+        elif survey.type == 'table':
+            votes = Vote.query.join(Question).join(TableRespondent).filter(
+                Question.survey_id == survey_id,
+                TableRespondent.survey_id == survey_id
+            ).all()
+        
+        for vote in votes:
+            db.session.delete(vote)
+        
+        # 删除主观题回答
+        subjective_answers = SubjectiveAnswer.query.filter_by(survey_id=survey_id).all()
+        for answer in subjective_answers:
+            db.session.delete(answer)
+        
+        db.session.commit()
+        flash(f'已成功删除问卷 "{survey.name}" 的所有投票数据', 'success')
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"删除投票数据失败: {e}")
+        flash('删除投票数据失败，请重试', 'danger')
+    
+    return redirect(url_for('view_results', survey_id=survey_id))
 
 @app.route('/admin/copy_survey/<int:survey_id>', methods=['POST'])
 def copy_survey(survey_id):

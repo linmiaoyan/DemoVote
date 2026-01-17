@@ -1,8 +1,74 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="container mt-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+<style>
+    .edit-page-container {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 2rem 1rem;
+    }
+    
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+    }
+    
+    .page-header h2 {
+        font-size: 1.75rem;
+        font-weight: 600;
+        color: #1a202c;
+        margin: 0;
+    }
+    
+    .section-card {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+    
+    .section-header {
+        font-size: 1.125rem;
+        font-weight: 600;
+        color: #2d3748;
+        margin-bottom: 1.5rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 2px solid #edf2f7;
+    }
+    
+    .form-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 1.25rem;
+    }
+    
+    .form-grid-full {
+        grid-column: 1 / -1;
+    }
+    
+    @media (max-width: 768px) {
+        .edit-page-container {
+            padding: 1rem 0.75rem;
+        }
+        
+        .page-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 1rem;
+        }
+        
+        .form-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+<div class="edit-page-container">
+    <div class="page-header">
         <h2>编辑问卷：{{ survey.name }}</h2>
         <a href="{{ url_for('admin') }}" class="btn btn-secondary">返回问卷列表</a>
     </div>
@@ -16,11 +82,73 @@
     {% endwith %}
 
     <!-- 基本信息编辑 -->
-    <div class="card mb-4">
-        <div class="card-header">
-            <h5 class="mb-0">基本信息</h5>
-        </div>
-        <div class="card-body">
+    <div class="section-card">
+        <div class="section-header">基本信息</div>
+        <form action="{{ url_for('update_survey_info', survey_id=survey.id) }}" method="post">
+            <div class="form-grid">
+                <div class="form-grid-full">
+                    <label for="survey_name" class="form-label">问卷名称 <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="survey_name" name="survey_name" 
+                           value="{{ survey.name }}" required>
+                </div>
+                
+                <div class="form-grid-full">
+                    <label for="survey_introduction" class="form-label">问卷简介</label>
+                    <textarea class="form-control" id="survey_introduction" name="survey_introduction" 
+                              rows="2">{{ survey.introduction or '' }}</textarea>
+                    <small class="text-muted">非必填项</small>
+                </div>
+                
+                <div class="form-grid-full">
+                    <label for="subjective_question_prompt" class="form-label">主观题说明文字</label>
+                    <textarea class="form-control" id="subjective_question_prompt" name="subjective_question_prompt" 
+                              rows="2">{{ survey.subjective_question_prompt or '' }}</textarea>
+                    <small class="text-muted">非必填项</small>
+                </div>
+                
+                {% if survey.type == 'table' %}
+                <div>
+                    <label for="table_option_count" class="form-label">选项数量</label>
+                    <select class="form-select" id="table_option_count" name="table_option_count" required>
+                        <option value="2" {% if survey.table_option_count==2 %}selected{% endif %}>2项 (A/B)</option>
+                        <option value="3" {% if survey.table_option_count==3 %}selected{% endif %}>3项 (A/B/C)</option>
+                        <option value="4" {% if survey.table_option_count==4 %}selected{% endif %}>4项 (A/B/C/D)</option>
+                        <option value="5" {% if survey.table_option_count==5 %}selected{% endif %}>5项 (A/B/C/D/E)</option>
+                    </select>
+                    <small class="text-muted">修改选项数量会影响所有问题</small>
+                </div>
+                {% endif %}
+                
+                <div>
+                    <label class="form-label">功能设置</label>
+                    <div class="form-check mt-2">
+                        <input class="form-check-input" type="checkbox" name="enable_quick_fill" id="enable_quick_fill" 
+                               {% if survey.enable_quick_fill %}checked{% endif %}>
+                        <label class="form-check-label" for="enable_quick_fill">
+                            启用快填功能
+                        </label>
+                        <small class="d-block text-muted mt-1" style="font-size: 0.8125rem;">
+                            按住快填按钮自动选择第一个选项
+                        </small>
+                    </div>
+                </div>
+                
+                <div class="form-grid-full mt-2">
+                    <button type="submit" class="btn btn-primary">保存基本信息</button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    {% if survey.type == 'single_choice' %}
+        <!-- 单选题问卷：问题管理 -->
+        <div class="section-card">
+            <div class="section-header d-flex justify-content-between align-items-center">
+                <span>问题管理</span>
+                <button type="button" class="btn btn-sm btn-success" 
+                        onclick="toggleCollapse('addQuestionForm')">添加问题</button>
+            </div>
+            <div class="card-body">
             <form action="{{ url_for('update_survey_info', survey_id=survey.id) }}" method="post">
                 <div class="mb-3">
                     <label for="survey_name" class="form-label">问卷名称</label>
@@ -67,16 +195,16 @@
 
     {% if survey.type == 'single_choice' %}
         <!-- 单选题问卷：问题管理 -->
-        <div class="card mb-4">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">问题管理</h5>
+        <div class="section-card">
+            <div class="section-header d-flex justify-content-between align-items-center">
+                <span>问题管理</span>
                 <button type="button" class="btn btn-sm btn-success" 
                         onclick="toggleCollapse('addQuestionForm')">添加问题</button>
             </div>
-            <div class="card-body">
+            <div>
                 <!-- 添加问题表单 -->
                 <div class="mb-3" id="addQuestionForm" style="display: none;">
-                    <div class="card card-body bg-light">
+                    <div style="background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.25rem;">
                         <form action="{{ url_for('create_single_choice_questions', survey_id=survey.id) }}" method="post">
                             <input type="hidden" name="action" value="add_single">
                             <div class="mb-3">
@@ -103,7 +231,7 @@
                             onclick="toggleCollapse('batchAddForm')">批量添加问题</button>
                 </div>
                 <div class="mb-3" id="batchAddForm" style="display: none;">
-                    <div class="card card-body bg-light">
+                    <div style="background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.25rem;">
                         <form action="{{ url_for('create_single_choice_questions', survey_id=survey.id) }}" method="post">
                             <input type="hidden" name="action" value="import_list">
                             <div class="mb-3">
@@ -179,11 +307,8 @@
         </div>
 
         <!-- 编辑问题的表单 -->
-        <div class="card mb-4" id="editQuestionCard" style="display: none;">
-            <div class="card-header">
-                <h5 class="mb-0">编辑问题</h5>
-            </div>
-            <div class="card-body">
+        <div class="section-card" id="editQuestionCard" style="display: none;">
+            <div class="section-header">编辑问题</div>
                 <form id="editQuestionForm" method="post">
                     <div class="mb-3">
                         <label for="edit_question_content" class="form-label">问题内容</label>
@@ -207,11 +332,9 @@
         </div>
 
         <!-- 选项限制设置 -->
-        <div class="card mb-4">
-            <div class="card-header">
-                <h5 class="mb-0">选项限制设置</h5>
-            </div>
-            <div class="card-body">
+        <div class="section-card">
+            <div class="section-header">选项限制设置</div>
+            <div>
                 <form action="{{ url_for('set_option_limits', survey_id=survey.id) }}" method="post">
                     <div class="row">
                         {% for option in 'ABCDE' %}
@@ -231,16 +354,15 @@
 
     {% else %}
         <!-- 表格问卷：问题管理 -->
-        <div class="card mb-4">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">问题管理</h5>
+        <div class="section-card">
+            <div class="section-header d-flex justify-content-between align-items-center">
+                <span>问题管理</span>
                 <button type="button" class="btn btn-sm btn-success" 
                         onclick="toggleCollapse('addTableQuestionForm')">添加问题</button>
             </div>
-            <div class="card-body">
                 <!-- 添加问题表单 -->
                 <div class="mb-3" id="addTableQuestionForm" style="display: none;">
-                    <div class="card card-body bg-light">
+                    <div style="background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.25rem;">
                         <form action="{{ url_for('create_table_questions', survey_id=survey.id) }}" method="post">
                             <div class="mb-3">
                                 <label for="content" class="form-label">问题内容（列标题）</label>
@@ -302,11 +424,8 @@
         </div>
 
         <!-- 编辑表格问题的表单 -->
-        <div class="card mb-4" id="editTableQuestionCard" style="display: none;">
-            <div class="card-header">
-                <h5 class="mb-0">编辑问题</h5>
-            </div>
-            <div class="card-body">
+        <div class="section-card" id="editTableQuestionCard" style="display: none;">
+            <div class="section-header">编辑问题</div>
                 <form id="editTableQuestionForm" method="post">
                     <div class="mb-3">
                         <label for="edit_table_question_content" class="form-label">问题内容（列标题）</label>
@@ -321,16 +440,15 @@
         </div>
 
         <!-- 人名管理 -->
-        <div class="card mb-4">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">人名管理</h5>
+        <div class="section-card">
+            <div class="section-header d-flex justify-content-between align-items-center">
+                <span>人名管理</span>
                 <button type="button" class="btn btn-sm btn-success" 
                         onclick="toggleCollapse('addRespondentForm')">添加人名</button>
             </div>
-            <div class="card-body">
                 <!-- 添加人名表单 -->
                 <div class="mb-3" id="addRespondentForm" style="display: none;">
-                    <div class="card card-body bg-light">
+                    <div style="background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.25rem;">
                         <form action="{{ url_for('manage_table_respondents', survey_id=survey.id) }}" method="post">
                             <input type="hidden" name="action" value="add_single">
                             <div class="mb-3">
@@ -348,7 +466,7 @@
                             onclick="toggleCollapse('batchImportForm')">批量导入人名</button>
                 </div>
                 <div class="mb-3" id="batchImportForm" style="display: none;">
-                    <div class="card card-body bg-light">
+                    <div style="background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.25rem;">
                         <form action="{{ url_for('manage_table_respondents', survey_id=survey.id) }}" method="post">
                             <input type="hidden" name="action" value="import_list">
                             <div class="mb-3">
@@ -383,6 +501,7 @@
         </div>
     {% endif %}
 </div>
+{% endblock %}
 
 <script>
     // 编辑单选题问题

@@ -1,15 +1,52 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="container mt-4">
-    <h2>管理表格问卷 - {{ survey.name }} - 管理人名</h2>
+<style>
+    .page-container {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 2rem 1rem;
+    }
+    
+    .page-header {
+        font-size: 1.75rem;
+        font-weight: 600;
+        color: #1a202c;
+        margin-bottom: 2rem;
+    }
+    
+    .section-card {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+    
+    .section-header {
+        font-size: 1.125rem;
+        font-weight: 600;
+        color: #2d3748;
+        margin-bottom: 1.5rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 2px solid #edf2f7;
+    }
+    
+    @media (max-width: 768px) {
+        .page-container {
+            padding: 1rem 0.75rem;
+        }
+    }
+</style>
+
+<div class="page-container">
+    <h2 class="page-header">管理表格问卷 - {{ survey.name }} - 管理人名</h2>
     
     <!-- 添加单个人名 -->
-    <div class="card mb-4">
-        <div class="card-header">
-            添加单个人名
-        </div>
-        <div class="card-body">
+    <div class="section-card">
+        <div class="section-header">添加单个人名</div>
+        <div>
             <form action="{{ url_for('manage_table_respondents', survey_id=survey.id) }}" method="post">
                 <input type="hidden" name="action" value="add_single">
                 <div class="mb-3">
@@ -22,11 +59,9 @@
     </div>
 
     <!-- 导入人名列表 -->
-    <div class="card mb-4">
-        <div class="card-header">
-            导入人名列表 (每行一个人名)
-        </div>
-        <div class="card-body">
+    <div class="section-card">
+        <div class="section-header">导入人名列表 (每行一个人名)</div>
+        <div>
             <form action="{{ url_for('manage_table_respondents', survey_id=survey.id) }}" method="post">
                 <input type="hidden" name="action" value="import_list">
                 <div class="mb-3">
@@ -40,11 +75,9 @@
     </div>
 
     <!-- 现有成员列表 -->
-    <div class="card">
-        <div class="card-header">
-            现有成员列表
-        </div>
-        <div class="card-body">
+    <div class="section-card">
+        <div class="section-header">现有成员列表</div>
+        <div>
             {% if respondents %}
             <ul class="list-group">
                 {% for respondent in respondents %}

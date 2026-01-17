@@ -1,15 +1,52 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="container mt-4">
-    <h2>管理单选题问卷 - {{ survey.name }}</h2>
+<style>
+    .page-container {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 2rem 1rem;
+    }
+    
+    .page-header {
+        font-size: 1.75rem;
+        font-weight: 600;
+        color: #1a202c;
+        margin-bottom: 2rem;
+    }
+    
+    .section-card {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+    
+    .section-header {
+        font-size: 1.125rem;
+        font-weight: 600;
+        color: #2d3748;
+        margin-bottom: 1.5rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 2px solid #edf2f7;
+    }
+    
+    @media (max-width: 768px) {
+        .page-container {
+            padding: 1rem 0.75rem;
+        }
+    }
+</style>
+
+<div class="page-container">
+    <h2 class="page-header">管理单选题问卷 - {{ survey.name }}</h2>
 
     <!-- 设置选项限制 -->
-    <div class="card mb-4">
-        <div class="card-header">
-            设置选项限制
-        </div>
-        <div class="card-body">
+    <div class="section-card">
+        <div class="section-header">设置选项限制</div>
+        <div>
             <form action="{{ url_for('set_option_limits', survey_id=survey.id) }}" method="post">
                 <div class="row">
                     {% for option in 'ABCDE' %}
@@ -27,11 +64,9 @@
     </div>
 
     <!-- 批量添加问题 -->
-    <div class="card mb-4">
-        <div class="card-header">
-            批量添加问题 (每行一个问题)
-        </div>
-        <div class="card-body">
+    <div class="section-card">
+        <div class="section-header">批量添加问题 (每行一个问题)</div>
+        <div>
             <form action="{{ url_for('create_single_choice_questions', survey_id=survey.id) }}" method="post">
                 <input type="hidden" name="action" value="import_list">
                 <div class="mb-3">
@@ -54,11 +89,9 @@
     </div>
 
     <!-- 问题列表 -->
-    <div class="card">
-        <div class="card-header">
-            问题列表
-        </div>
-        <div class="card-body">
+    <div class="section-card">
+        <div class="section-header">问题列表</div>
+        <div>
             {% if questions %}
             <div class="list-group">
                 {% for question in questions %}

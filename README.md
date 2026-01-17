@@ -58,14 +58,33 @@ python -m app
 
 ## 配置说明
 
-### 环境变量配置（可选）
+### 环境变量配置（推荐使用 .env 文件）
 
-可以通过环境变量自定义配置：
+**推荐方式：使用 .env 文件**
+
+1. 复制 `env.example` 文件为 `.env`：
+   ```bash
+   cp env.example .env
+   ```
+
+2. 编辑 `.env` 文件，修改配置值：
+   ```env
+   HOST=0.0.0.0
+   PORT=5005
+   DEBUG=False
+   SECRET_KEY=your-secret-key-here-change-this-in-production
+   ADMIN_GATE_KEY=your-admin-gate-key-here
+   PUBLIC_HOST=
+   ```
+
+3. `.env` 文件不会被提交到 git，可以安全地存储敏感信息。
+
+**或者使用环境变量（不推荐用于生产环境）**
 
 ```bash
 # Windows PowerShell
 $env:HOST="0.0.0.0"
-$env:PORT="5000"
+$env:PORT="5005"
 $env:DEBUG="False"
 $env:ADMIN_GATE_KEY="your_key"
 $env:PUBLIC_HOST="http://your-domain.com/"
@@ -73,7 +92,7 @@ $env:SECRET_KEY="your_secret_key"
 
 # Linux/macOS
 export HOST=0.0.0.0
-export PORT=5000
+export PORT=5005
 export DEBUG=False
 export ADMIN_GATE_KEY=your_key
 export PUBLIC_HOST=http://your-domain.com/
@@ -85,7 +104,7 @@ export SECRET_KEY=your_secret_key
 | 环境变量 | 默认值 | 说明 |
 |---------|--------|------|
 | `HOST` | `0.0.0.0` | 服务器监听地址 |
-| `PORT` | `5000` | 服务器端口 |
+| `PORT` | `5005` | 服务器端口 |
 | `DEBUG` | `False` | 调试模式（True/False） |
 | `ADMIN_GATE_KEY` | `wzkjgz` | 管理员入口密钥 |
 | `PUBLIC_HOST` | 自动获取 | 二维码中的公网地址（留空则自动获取） |
