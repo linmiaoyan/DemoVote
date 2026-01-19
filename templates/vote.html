@@ -110,7 +110,8 @@
                     <div class="btn-group" role="group">
                         {% for option in 'ABCDE'[:question.option_count] %}
                         <input type="radio" class="btn-check" name="question_{{ question.id }}" 
-                               id="q{{ question.id }}_{{ option }}" value="{{ option }}" required>
+                               id="q{{ question.id }}_{{ option }}" value="{{ option }}" required
+                               {% if saved_choices.get('question_' + question.id|string) == option %}checked{% endif %}>
                         <label class="btn btn-outline-primary" for="q{{ question.id }}_{{ option }}">{{ option }}</label>
                         {% endfor %}
                     </div>
@@ -145,6 +146,17 @@
             <button type="button" id="quick-score-btn" class="quick-fill-btn" title="按住自动选择第一个选项">按住快填</button>
             {% endif %}
             
+            {% if survey.option_limits %}
+            <div class="alert alert-info mb-3">
+                <h5 class="alert-heading">选项限制说明</h5>
+                <p class="mb-0">
+                    {% for option in survey.option_limits.keys() %}
+                    选项 {{ option }} 最多选择 {{ survey.option_limits[option] }} 次<br>
+                    {% endfor %}
+                </p>
+            </div>
+            {% endif %}
+            
             <!-- 分页控制（仅移动端显示） -->
             <div id="pagination-container" style="display: none;">
                 <div class="pagination" id="pagination-controls"></div>
@@ -171,7 +183,8 @@
                                     <input type="radio" class="btn-check" 
                                            name="vote_{{ question.id }}_{{ respondent.id }}" 
                                            id="vote_{{ question.id }}_{{ respondent.id }}_{{ option }}" 
-                                           value="{{ option }}" required>
+                                           value="{{ option }}" required
+                                           {% if saved_choices.get('vote_' + question.id|string + '_' + respondent.id|string) == option %}checked{% endif %}>
                                     <label class="btn btn-outline-primary" 
                                            for="vote_{{ question.id }}_{{ respondent.id }}_{{ option }}">{{ option }}</label>
                                     {% endfor %}
@@ -188,6 +201,23 @@
             <div id="pagination-info" style="display: none; text-align: center; margin: 1rem 0; color: #666;">
                 <span id="page-info-text"></span>
             </div>
+            
+            <!-- 添加选项计数显示 -->
+            {% if survey.option_limits %}
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">选项限制（提交时系统会自动核对数量）</h5>
+                    <div id="tableOptionCounts">
+                        {% for option in survey.option_limits.keys() %}
+                        <div class="option-limit-info">
+                            选项 {{ option }}: <span id="table_count_{{ option }}">0</span>
+                            / {{ survey.option_limits[option] }}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
         {% endif %}
         
         {% if subjective_question_prompt %}
@@ -196,7 +226,7 @@
                 <h5 class="card-title">{{ subjective_question_prompt }}</h5>
                 <div class="mb-3">
                     <textarea class="form-control" id="subjective_answer" name="subjective_answer" rows="5" 
-                              placeholder="请在此处输入您的意见和建议..."></textarea>
+                              placeholder="请在此处输入您的意见和建议...">{{ saved_choices.get('subjective_answer', '') }}</textarea>
                 </div>
             </div>
         </div>
@@ -234,8 +264,60 @@ document.addEventListener('DOMContentLoaded', function() {
         radio.addEventListener('change', updateOptionCounts);
     });
 
-    // 页面加载时初始化一次
+    // 页面加载时初始化一次（包括恢复保存的选择后）
     updateOptionCounts();
+    
+    // 如果有保存的选择，触发change事件以确保计数正确更新
+    document.querySelectorAll('input[type="radio"]:checked').forEach(radio => {
+        const changeEvent = new Event('change', { bubbles: true });
+        radio.dispatchEvent(changeEvent);
+    });
+});
+</script>
+{% endif %}
+
+{% if survey.type == 'table' and survey.option_limits %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const optionLimits = {{ survey.option_limits|tojson|safe }};
+    const optionList = Object.keys(optionLimits);
+
+    function updateTableOptionCounts() {
+        const counts = {};
+        optionList.forEach(opt => counts[opt] = 0);
+        // 统计表格中所有已选择的选项
+        document.querySelectorAll('#vote-table input[type="radio"]:checked').forEach(radio => {
+            const val = radio.value;
+            if (counts[val] !== undefined) counts[val]++;
+        });
+        // 更新显示
+        optionList.forEach(opt => {
+            const countElem = document.getElementById(`table_count_${opt}`);
+            if (countElem) {
+                countElem.textContent = counts[opt];
+                // 如果超过限制，显示警告样式
+                if (counts[opt] > optionLimits[opt]) {
+                    countElem.classList.add('option-limit-warning');
+                } else {
+                    countElem.classList.remove('option-limit-warning');
+                }
+            }
+        });
+    }
+
+    // 绑定所有radio的change事件
+    document.querySelectorAll('#vote-table input[type="radio"]').forEach(radio => {
+        radio.addEventListener('change', updateTableOptionCounts);
+    });
+
+    // 页面加载时初始化一次（包括恢复保存的选择后）
+    updateTableOptionCounts();
+    
+    // 如果有保存的选择，触发change事件以确保计数正确更新
+    document.querySelectorAll('#vote-table input[type="radio"]:checked').forEach(radio => {
+        const changeEvent = new Event('change', { bubbles: true });
+        radio.dispatchEvent(changeEvent);
+    });
 });
 </script>
 {% endif %}

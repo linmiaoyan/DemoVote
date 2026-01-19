@@ -514,7 +514,8 @@ def preview_survey(survey_id):
         subjective_question_prompt=survey.subjective_question_prompt,
         table_option_count=table_option_count,
         enable_quick_fill=survey.enable_quick_fill,
-        is_preview=True
+        is_preview=True,
+        saved_choices={}  # 预览模式下不需要保存选择
     )
 
 @app.route('/vote/<int:survey_id>')
@@ -529,6 +530,10 @@ def vote(survey_id):
         
     table_option_count = survey.table_option_count if survey.type == 'table' else None
     
+    # 从session中恢复保存的选择
+    session_key = f'saved_choices_{survey_id}'
+    saved_choices = session.get(session_key, {})
+    
     return render_template(
         'vote.html',
         survey=survey,
@@ -536,7 +541,8 @@ def vote(survey_id):
         respondents=respondents,
         subjective_question_prompt=survey.subjective_question_prompt,
         table_option_count=table_option_count,
-        enable_quick_fill=survey.enable_quick_fill
+        enable_quick_fill=survey.enable_quick_fill,
+        saved_choices=saved_choices
     )
 
 @app.route('/admin/set_option_limits/<int:survey_id>', methods=['POST'])
@@ -547,9 +553,19 @@ def set_option_limits(survey_id):
     
     survey = Survey.query.get_or_404(survey_id)
     
+    # 根据问卷类型确定可用的选项范围
+    if survey.type == 'table':
+        # 表格型问卷：只允许设置table_option_count范围内的选项
+        available_options = 'ABCDE'[:survey.table_option_count]
+        redirect_url = url_for('create_table_questions', survey_id=survey_id)
+    else:
+        # 单选题问卷：允许设置所有选项
+        available_options = 'ABCDE'
+        redirect_url = url_for('create_single_choice_questions', survey_id=survey_id)
+    
     # 获取选项限制
     option_limits = {}
-    for option in 'ABCDE':
+    for option in available_options:
         limit = request.form.get(f'limit_{option}')
         if limit and limit.strip():
             try:
@@ -558,14 +574,14 @@ def set_option_limits(survey_id):
                     option_limits[option] = limit_value
             except ValueError:
                 flash(f'选项 {option} 的限制值必须是正整数', 'danger')
-                return redirect(url_for('create_single_choice_questions', survey_id=survey_id))
+                return redirect(redirect_url)
     
     # 更新问卷的选项限制
     survey.option_limits = option_limits
     db.session.commit()
     
     flash('选项限制设置已保存', 'success')
-    return redirect(url_for('create_single_choice_questions', survey_id=survey_id))
+    return redirect(redirect_url)
 
 
 
@@ -644,6 +660,24 @@ def save_vote_to_db(vote_data, retry_count=0):
 def submit_vote(survey_id):
     survey = Survey.query.get_or_404(survey_id)
     
+    # 保存用户的选择到session，以便验证失败时恢复
+    saved_choices = {}
+    if survey.type == 'single_choice':
+        for question_id, score in request.form.items():
+            if question_id.startswith('question_'):
+                saved_choices[question_id] = score
+        if 'subjective_answer' in request.form:
+            saved_choices['subjective_answer'] = request.form.get('subjective_answer', '')
+    elif survey.type == 'table':
+        for key, score in request.form.items():
+            if key.startswith('vote_'):
+                saved_choices[key] = score
+        if 'subjective_answer' in request.form:
+            saved_choices['subjective_answer'] = request.form.get('subjective_answer', '')
+    
+    session_key = f'saved_choices_{survey_id}'
+    session[session_key] = saved_choices
+    
     # 校验逻辑
     if survey.type == 'single_choice':
         questions = Question.query.filter_by(survey_id=survey_id).all()
@@ -668,6 +702,16 @@ def submit_vote(survey_id):
             for respondent in respondents:
                 if f'vote_{question.id}_{respondent.id}' not in request.form or not request.form[f'vote_{question.id}_{respondent.id}']:
                     flash('请完成所有问题后再进行提交', 'danger')
+                    return redirect(url_for('vote', survey_id=survey_id))
+        if survey.option_limits:
+            option_counts = {}
+            for key, score in request.form.items():
+                if key.startswith('vote_'):
+                    option = score
+                    option_counts[option] = option_counts.get(option, 0) + 1
+            for option, limit in survey.option_limits.items():
+                if option_counts.get(option, 0) > limit:
+                    flash(f'选项 {option} 的选择次数超过了限制 ({limit}次)', 'danger')
                     return redirect(url_for('vote', survey_id=survey_id))
     
     # 打包投票数据
@@ -699,6 +743,12 @@ def submit_vote(survey_id):
     
     # 将投票数据入队等待写入数据库
     submit_queue.put((save_vote_to_db, (vote_data,), {}))
+    
+    # 清除保存的选择（提交成功）
+    session_key = f'saved_choices_{survey_id}'
+    if session_key in session:
+        del session[session_key]
+    
     flash('您的投票已提交成功！', 'success')
     return redirect(url_for('thank_you'))
 

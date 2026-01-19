@@ -42,6 +42,26 @@
 
 <div class="page-container">
     <h2 class="page-header">管理表格问卷 - {{ survey.name }} - 添加问题</h2>
+
+    <!-- 设置选项限制 -->
+    <div class="section-card">
+        <div class="section-header">设置选项限制</div>
+        <div>
+            <form action="{{ url_for('set_option_limits', survey_id=survey.id) }}" method="post">
+                <div class="row">
+                    {% for option in 'ABCDE'[:survey.table_option_count] %}
+                    <div class="col-md-4 mb-3">
+                        <label for="limit_{{ option }}" class="form-label">选项 {{ option }} 最大选择次数</label>
+                        <input type="number" class="form-control" id="limit_{{ option }}" 
+                               name="limit_{{ option }}" min="0" value="{{ (survey.option_limits or {}).get(option, '') }}"
+                               placeholder="不限制请留空">
+                    </div>
+                    {% endfor %}
+                </div>
+                <button type="submit" class="btn btn-primary">保存限制设置</button>
+            </form>
+        </div>
+    </div>
     
     <!-- 添加新问题 -->
     <div class="section-card">
