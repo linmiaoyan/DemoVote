@@ -62,6 +62,122 @@
         font-size: 0.9rem;
         margin-top: 0.5rem;
     }
+    /* 选项限制悬浮提示框 */
+    #option-limit-tooltip {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: rgba(0, 0, 0, 0.85);
+        color: white;
+        padding: 12px 16px;
+        border-radius: 8px;
+        font-size: 14px;
+        z-index: 10000;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        min-width: 200px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        display: none;
+        transition: opacity 0.3s ease;
+    }
+    #option-limit-tooltip .tooltip-title {
+        font-weight: 600;
+        margin-bottom: 8px;
+        font-size: 15px;
+    }
+    #option-limit-tooltip .option-item {
+        margin-bottom: 6px;
+        padding: 6px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 4px;
+    }
+    #option-limit-tooltip .option-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 4px;
+    }
+    #option-limit-tooltip .option-name {
+        font-weight: 500;
+    }
+    #option-limit-tooltip .option-count {
+        font-weight: 600;
+    }
+    #option-limit-tooltip .option-progress {
+        background: rgba(255, 255, 255, 0.2);
+        height: 4px;
+        border-radius: 2px;
+        overflow: hidden;
+        margin-bottom: 2px;
+    }
+    #option-limit-tooltip .option-progress-bar {
+        height: 100%;
+        transition: width 0.3s ease;
+    }
+    /* 表格缩放控制 */
+    .table-zoom-wrapper {
+        position: relative;
+        overflow: auto;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        background: white;
+        margin: 20px 0;
+    }
+    .table-zoom-controls {
+        position: sticky;
+        top: 0;
+        background: #f9fafb;
+        border-bottom: 1px solid #e5e7eb;
+        padding: 8px 12px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        z-index: 10;
+        font-size: 14px;
+    }
+    .table-zoom-controls .zoom-label {
+        margin-right: 8px;
+        color: #6b7280;
+        font-weight: 500;
+    }
+    .table-zoom-controls .zoom-display {
+        min-width: 50px;
+        text-align: center;
+        font-weight: 600;
+        color: #2563eb;
+        margin: 0 8px;
+    }
+    .table-zoom-controls .zoom-btn {
+        width: 32px;
+        height: 32px;
+        border: 1px solid #d1d5db;
+        background: white;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 18px;
+        font-weight: 600;
+        color: #374151;
+        margin-right: 4px;
+        transition: all 0.2s;
+    }
+    .table-zoom-controls .zoom-btn:hover {
+        background: #f3f4f6;
+    }
+    .table-zoom-controls .zoom-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+    .table-zoom-controls .zoom-reset {
+        margin-left: 8px;
+        padding: 6px 12px;
+        width: auto;
+        height: auto;
+        font-size: 13px;
+    }
+    .table-zoom-container {
+        transform-origin: top left;
+        transition: transform 0.3s ease;
+        overflow: visible;
+    }
 </style>
 <div class="container mt-4">
     <h2 style="color: #2d3748; font-weight: 600; margin-bottom: 1.5rem;">{{ survey.name }}</h2>
@@ -122,21 +238,9 @@
             </div>
             {% endfor %}
             
-            <!-- 添加选项计数显示 -->
+            <!-- 选项限制悬浮提示框 -->
             {% if survey.option_limits %}
-            <div class="card mb-3">
-                <div class="card-body">
-                    <h5 class="card-title">选项限制（提交时系统会自动核对数量）</h5>
-                    <div id="optionCounts">
-                        {% for option in survey.option_limits.keys() %}
-                        <div class="option-limit-info">
-                            选项 {{ option }}: <span id="count_{{ option }}">0</span>
-                            / {{ survey.option_limits[option] }}
-                        </div>
-                        {% endfor %}
-                    </div>
-                </div>
-            </div>
+            <div id="option-limit-tooltip"></div>
             {% endif %}
             
         {% elif survey.type == 'table' %}
@@ -162,39 +266,50 @@
                 <div class="pagination" id="pagination-controls"></div>
             </div>
             
-            <div class="table-responsive">
-                <table class="table table-bordered" id="vote-table">
-                    <thead>
-                        <tr>
-                            <th> </th>
-                            {% for question in questions %}
-                            <th>{{ question.content }}</th>
-                            {% endfor %}
-                        </tr>
-                    </thead>
-                    <tbody id="vote-table-body">
-                        {% for respondent in respondents %}
-                        <tr data-respondent-id="{{ respondent.id }}" class="respondent-row">
-                            <td>{{ respondent.name }}</td>
-                            {% for question in questions %}
-                            <td>
-                                <div class="btn-group" role="group">
-                                    {% for option in 'ABCDE'[:table_option_count] %}
-                                    <input type="radio" class="btn-check" 
-                                           name="vote_{{ question.id }}_{{ respondent.id }}" 
-                                           id="vote_{{ question.id }}_{{ respondent.id }}_{{ option }}" 
-                                           value="{{ option }}" required
-                                           {% if saved_choices.get('vote_' + question.id|string + '_' + respondent.id|string) == option %}checked{% endif %}>
-                                    <label class="btn btn-outline-primary" 
-                                           for="vote_{{ question.id }}_{{ respondent.id }}_{{ option }}">{{ option }}</label>
+            <div class="table-responsive" id="table-responsive-wrapper">
+                <div class="table-zoom-wrapper">
+                    <div class="table-zoom-controls">
+                        <span class="zoom-label">缩放:</span>
+                        <button class="zoom-btn zoom-out" type="button">−</button>
+                        <span class="zoom-display">100%</span>
+                        <button class="zoom-btn zoom-in" type="button">+</button>
+                        <button class="zoom-btn zoom-reset" type="button">重置</button>
+                    </div>
+                    <div class="table-zoom-container">
+                        <table class="table table-bordered" id="vote-table">
+                            <thead>
+                                <tr>
+                                    <th> </th>
+                                    {% for question in questions %}
+                                    <th>{{ question.content }}</th>
                                     {% endfor %}
-                                </div>
-                            </td>
-                            {% endfor %}
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+                                </tr>
+                            </thead>
+                            <tbody id="vote-table-body">
+                                {% for respondent in respondents %}
+                                <tr data-respondent-id="{{ respondent.id }}" class="respondent-row">
+                                    <td>{{ respondent.name }}</td>
+                                    {% for question in questions %}
+                                    <td>
+                                        <div class="btn-group" role="group">
+                                            {% for option in 'ABCDE'[:table_option_count] %}
+                                            <input type="radio" class="btn-check" 
+                                                   name="vote_{{ question.id }}_{{ respondent.id }}" 
+                                                   id="vote_{{ question.id }}_{{ respondent.id }}_{{ option }}" 
+                                                   value="{{ option }}" required
+                                                   {% if saved_choices.get('vote_' + question.id|string + '_' + respondent.id|string) == option %}checked{% endif %}>
+                                            <label class="btn btn-outline-primary" 
+                                                   for="vote_{{ question.id }}_{{ respondent.id }}_{{ option }}">{{ option }}</label>
+                                            {% endfor %}
+                                        </div>
+                                    </td>
+                                    {% endfor %}
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
             
             <!-- 分页信息 -->
@@ -202,21 +317,9 @@
                 <span id="page-info-text"></span>
             </div>
             
-            <!-- 添加选项计数显示 -->
+            <!-- 选项限制悬浮提示框 -->
             {% if survey.option_limits %}
-            <div class="card mb-3">
-                <div class="card-body">
-                    <h5 class="card-title">选项限制（提交时系统会自动核对数量）</h5>
-                    <div id="tableOptionCounts">
-                        {% for option in survey.option_limits.keys() %}
-                        <div class="option-limit-info">
-                            选项 {{ option }}: <span id="table_count_{{ option }}">0</span>
-                            / {{ survey.option_limits[option] }}
-                        </div>
-                        {% endfor %}
-                    </div>
-                </div>
-            </div>
+            <div id="option-limit-tooltip"></div>
             {% endif %}
         {% endif %}
         
@@ -243,6 +346,7 @@
 document.addEventListener('DOMContentLoaded', function() {
     const optionLimits = {{ survey.option_limits|tojson|safe }};
     const optionList = Object.keys(optionLimits);
+    const tooltip = document.getElementById('option-limit-tooltip');
 
     function updateOptionCounts() {
         const counts = {};
@@ -251,12 +355,45 @@ document.addEventListener('DOMContentLoaded', function() {
             const val = radio.value;
             if (counts[val] !== undefined) counts[val]++;
         });
-        optionList.forEach(opt => {
-            const countElem = document.getElementById(`count_${opt}`);
-            if (countElem) {
-                countElem.textContent = counts[opt];
+        
+        // 更新悬浮提示框
+        if (tooltip) {
+            let html = '<div class="tooltip-title">选项限制状态</div>';
+            let hasActiveLimits = false;
+
+            optionList.sort().forEach(option => {
+                const limit = optionLimits[option];
+                const count = counts[option] || 0;
+                
+                if (limit && limit > 0) {
+                    hasActiveLimits = true;
+                    const percentage = (count / limit) * 100;
+                    const isWarning = percentage >= 80;
+                    const isDanger = percentage >= 100;
+                    
+                    const color = isDanger ? '#ef4444' : isWarning ? '#f59e0b' : '#10b981';
+                    
+                    html += `
+                        <div class="option-item">
+                            <div class="option-header">
+                                <span class="option-name">选项 ${option}:</span>
+                                <span class="option-count" style="color: ${color};">${count} / ${limit}</span>
+                            </div>
+                            <div class="option-progress">
+                                <div class="option-progress-bar" style="background: ${color}; width: ${Math.min(percentage, 100)}%;"></div>
+                            </div>
+                        </div>
+                    `;
+                }
+            });
+
+            if (hasActiveLimits) {
+                tooltip.innerHTML = html;
+                tooltip.style.display = 'block';
+            } else {
+                tooltip.style.display = 'none';
             }
-        });
+        }
     }
 
     // 绑定所有radio的change事件
@@ -276,11 +413,57 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 {% endif %}
 
-{% if survey.type == 'table' and survey.option_limits %}
+{% if survey.type == 'table' %}
+<script>
+// 表格缩放功能（全局函数，可被多次调用但只初始化一次）
+function initTableZoom() {
+    const zoomContainer = document.querySelector('.table-zoom-container');
+    const zoomDisplay = document.querySelector('.zoom-display');
+    const zoomOutBtn = document.querySelector('.zoom-out');
+    const zoomInBtn = document.querySelector('.zoom-in');
+    const zoomResetBtn = document.querySelector('.zoom-reset');
+
+    if (zoomContainer && zoomDisplay && zoomOutBtn && zoomInBtn && zoomResetBtn) {
+        // 如果已经初始化过，跳过
+        if (zoomContainer.hasAttribute('data-zoom-initialized')) {
+            return;
+        }
+        zoomContainer.setAttribute('data-zoom-initialized', 'true');
+
+        let zoomLevel = 100;
+        const minZoom = 10;
+        const maxZoom = 200;
+        const step = 10;
+
+        function updateZoom(level) {
+            zoomLevel = Math.max(minZoom, Math.min(maxZoom, level));
+            zoomContainer.style.transform = `scale(${zoomLevel / 100})`;
+            zoomDisplay.textContent = `${zoomLevel}%`;
+
+            zoomOutBtn.disabled = zoomLevel <= minZoom;
+            zoomInBtn.disabled = zoomLevel >= maxZoom;
+            zoomOutBtn.style.opacity = zoomLevel <= minZoom ? '0.5' : '1';
+            zoomInBtn.style.opacity = zoomLevel >= maxZoom ? '0.5' : '1';
+            zoomOutBtn.style.cursor = zoomLevel <= minZoom ? 'not-allowed' : 'pointer';
+            zoomInBtn.style.cursor = zoomLevel >= maxZoom ? 'not-allowed' : 'pointer';
+        }
+
+        zoomOutBtn.addEventListener('click', () => updateZoom(zoomLevel - step));
+        zoomInBtn.addEventListener('click', () => updateZoom(zoomLevel + step));
+        zoomResetBtn.addEventListener('click', () => updateZoom(100));
+
+        // 初始化
+        updateZoom(100);
+    }
+}
+</script>
+
+{% if survey.option_limits %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const optionLimits = {{ survey.option_limits|tojson|safe }};
     const optionList = Object.keys(optionLimits);
+    const tooltip = document.getElementById('option-limit-tooltip');
 
     function updateTableOptionCounts() {
         const counts = {};
@@ -290,19 +473,46 @@ document.addEventListener('DOMContentLoaded', function() {
             const val = radio.value;
             if (counts[val] !== undefined) counts[val]++;
         });
-        // 更新显示
-        optionList.forEach(opt => {
-            const countElem = document.getElementById(`table_count_${opt}`);
-            if (countElem) {
-                countElem.textContent = counts[opt];
-                // 如果超过限制，显示警告样式
-                if (counts[opt] > optionLimits[opt]) {
-                    countElem.classList.add('option-limit-warning');
-                } else {
-                    countElem.classList.remove('option-limit-warning');
+        
+        // 更新悬浮提示框
+        if (tooltip) {
+            let html = '<div class="tooltip-title">选项限制状态</div>';
+            let hasActiveLimits = false;
+
+            optionList.sort().forEach(option => {
+                const limit = optionLimits[option];
+                const count = counts[option] || 0;
+                
+                if (limit && limit > 0) {
+                    hasActiveLimits = true;
+                    const percentage = (count / limit) * 100;
+                    const isWarning = percentage >= 80;
+                    const isDanger = percentage >= 100;
+                    
+                    const color = isDanger ? '#ef4444' : isWarning ? '#f59e0b' : '#10b981';
+                    const status = isDanger ? '已满' : isWarning ? '接近' : '正常';
+                    
+                    html += `
+                        <div class="option-item">
+                            <div class="option-header">
+                                <span class="option-name">选项 ${option}:</span>
+                                <span class="option-count" style="color: ${color};">${count} / ${limit}</span>
+                            </div>
+                            <div class="option-progress">
+                                <div class="option-progress-bar" style="background: ${color}; width: ${Math.min(percentage, 100)}%;"></div>
+                            </div>
+                        </div>
+                    `;
                 }
+            });
+
+            if (hasActiveLimits) {
+                tooltip.innerHTML = html;
+                tooltip.style.display = 'block';
+            } else {
+                tooltip.style.display = 'none';
             }
-        });
+        }
     }
 
     // 绑定所有radio的change事件
@@ -318,8 +528,18 @@ document.addEventListener('DOMContentLoaded', function() {
         const changeEvent = new Event('change', { bubbles: true });
         radio.dispatchEvent(changeEvent);
     });
+
+    // 初始化表格缩放功能
+    initTableZoom();
 });
 </script>
+{% else %}
+document.addEventListener('DOMContentLoaded', function() {
+    // 如果没有选项限制，也需要初始化缩放功能
+    initTableZoom();
+});
+</script>
+{% endif %}
 {% endif %}
 
 {% if survey.type == 'single_choice' and enable_quick_fill %}
