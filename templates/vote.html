@@ -417,16 +417,30 @@ document.addEventListener('DOMContentLoaded', function() {
 <script>
 // 表格缩放功能（全局函数，可被多次调用但只初始化一次）
 function initTableZoom() {
-    const zoomContainer = document.querySelector('.table-zoom-container');
-    const zoomDisplay = document.querySelector('.zoom-display');
-    const zoomOutBtn = document.querySelector('.zoom-out');
-    const zoomInBtn = document.querySelector('.zoom-in');
-    const zoomResetBtn = document.querySelector('.zoom-reset');
+    try {
+        const zoomContainer = document.querySelector('.table-zoom-container');
+        const zoomDisplay = document.querySelector('.zoom-display');
+        const zoomOutBtn = document.querySelector('.zoom-out');
+        const zoomInBtn = document.querySelector('.zoom-in');
+        const zoomResetBtn = document.querySelector('.zoom-reset');
 
-    if (zoomContainer && zoomDisplay && zoomOutBtn && zoomInBtn && zoomResetBtn) {
+        // 调试信息
+        if (!zoomContainer) {
+            console.warn('表格缩放: 未找到 .table-zoom-container 元素');
+            return false;
+        }
+        if (!zoomDisplay) {
+            console.warn('表格缩放: 未找到 .zoom-display 元素');
+            return false;
+        }
+        if (!zoomOutBtn || !zoomInBtn || !zoomResetBtn) {
+            console.warn('表格缩放: 未找到缩放按钮元素');
+            return false;
+        }
+
         // 如果已经初始化过，跳过
         if (zoomContainer.hasAttribute('data-zoom-initialized')) {
-            return;
+            return true;
         }
         zoomContainer.setAttribute('data-zoom-initialized', 'true');
 
@@ -436,26 +450,93 @@ function initTableZoom() {
         const step = 10;
 
         function updateZoom(level) {
-            zoomLevel = Math.max(minZoom, Math.min(maxZoom, level));
-            zoomContainer.style.transform = `scale(${zoomLevel / 100})`;
-            zoomDisplay.textContent = `${zoomLevel}%`;
+            try {
+                zoomLevel = Math.max(minZoom, Math.min(maxZoom, level));
+                zoomContainer.style.transform = `scale(${zoomLevel / 100})`;
+                zoomContainer.style.webkitTransform = `scale(${zoomLevel / 100})`; // Safari兼容
+                zoomContainer.style.msTransform = `scale(${zoomLevel / 100})`; // IE兼容
+                zoomDisplay.textContent = `${zoomLevel}%`;
 
-            zoomOutBtn.disabled = zoomLevel <= minZoom;
-            zoomInBtn.disabled = zoomLevel >= maxZoom;
-            zoomOutBtn.style.opacity = zoomLevel <= minZoom ? '0.5' : '1';
-            zoomInBtn.style.opacity = zoomLevel >= maxZoom ? '0.5' : '1';
-            zoomOutBtn.style.cursor = zoomLevel <= minZoom ? 'not-allowed' : 'pointer';
-            zoomInBtn.style.cursor = zoomLevel >= maxZoom ? 'not-allowed' : 'pointer';
+                zoomOutBtn.disabled = zoomLevel <= minZoom;
+                zoomInBtn.disabled = zoomLevel >= maxZoom;
+                zoomOutBtn.style.opacity = zoomLevel <= minZoom ? '0.5' : '1';
+                zoomInBtn.style.opacity = zoomLevel >= maxZoom ? '0.5' : '1';
+                zoomOutBtn.style.cursor = zoomLevel <= minZoom ? 'not-allowed' : 'pointer';
+                zoomInBtn.style.cursor = zoomLevel >= maxZoom ? 'not-allowed' : 'pointer';
+            } catch (e) {
+                console.error('表格缩放: updateZoom 错误', e);
+            }
         }
 
-        zoomOutBtn.addEventListener('click', () => updateZoom(zoomLevel - step));
-        zoomInBtn.addEventListener('click', () => updateZoom(zoomLevel + step));
-        zoomResetBtn.addEventListener('click', () => updateZoom(100));
+        // 使用事件委托，确保事件绑定成功
+        zoomOutBtn.onclick = function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            updateZoom(zoomLevel - step);
+        };
+        zoomInBtn.onclick = function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            updateZoom(zoomLevel + step);
+        };
+        zoomResetBtn.onclick = function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            updateZoom(100);
+        };
 
         // 初始化
         updateZoom(100);
+        console.log('表格缩放功能已初始化');
+        return true;
+    } catch (e) {
+        console.error('表格缩放: 初始化错误', e);
+        return false;
     }
 }
+
+// 多种方式尝试初始化，确保在服务器上也能工作
+(function tryInitZoom() {
+    // 方式1: 如果DOM已经加载完成，立即执行
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+        setTimeout(initTableZoom, 100);
+    }
+    
+    // 方式2: DOMContentLoaded事件
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(initTableZoom, 100);
+        });
+    }
+    
+    // 方式3: window.onload事件（作为备用）
+    window.addEventListener('load', function() {
+        if (!document.querySelector('.table-zoom-container')?.hasAttribute('data-zoom-initialized')) {
+            setTimeout(initTableZoom, 200);
+        }
+    });
+    
+    // 方式4: 使用MutationObserver监听DOM变化（如果表格是动态加载的）
+    const observer = new MutationObserver(function(mutations) {
+        const container = document.querySelector('.table-zoom-container');
+        if (container && !container.hasAttribute('data-zoom-initialized')) {
+            setTimeout(initTableZoom, 100);
+        }
+    });
+    
+    // 观察body的变化
+    if (document.body) {
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+        
+        // 5秒后停止观察（避免无限观察）
+        setTimeout(function() {
+            observer.disconnect();
+        }, 5000);
+    }
+})();
 </script>
 
 {% if survey.option_limits %}
@@ -530,14 +611,37 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // 初始化表格缩放功能
-    initTableZoom();
+    setTimeout(initTableZoom, 100);
 });
 </script>
 {% else %}
-document.addEventListener('DOMContentLoaded', function() {
-    // 如果没有选项限制，也需要初始化缩放功能
-    initTableZoom();
-});
+<script>
+// 如果没有选项限制，也需要初始化缩放功能
+(function initZoomWithoutLimits() {
+    function tryInit() {
+        if (initTableZoom()) {
+            console.log('表格缩放功能已初始化（无选项限制）');
+        } else {
+            // 如果初始化失败，延迟重试
+            setTimeout(tryInit, 200);
+        }
+    }
+    
+    // 多种方式尝试初始化
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+        setTimeout(tryInit, 100);
+    } else {
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(tryInit, 100);
+        });
+    }
+    
+    window.addEventListener('load', function() {
+        if (!document.querySelector('.table-zoom-container')?.hasAttribute('data-zoom-initialized')) {
+            setTimeout(tryInit, 200);
+        }
+    });
+})();
 </script>
 {% endif %}
 {% endif %}
