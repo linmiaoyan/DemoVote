@@ -217,12 +217,21 @@
                 <div class="card-body">
                     <h5 class="card-title" style="font-weight: 600; margin-bottom: 1rem; color: #2c3e50;">{{ question.content }}</h5>
                     <div class="btn-group" role="group">
-                        {% for option in 'ABCDE'[:question.option_count] %}
-                        <input type="radio" class="btn-check" name="question_{{ question.id }}" 
-                               id="q{{ question.id }}_{{ option }}" value="{{ option }}" required
-                               {% if saved_choices.get('question_' + question.id|string) == option %}checked{% endif %}>
-                        <label class="btn btn-outline-primary" for="q{{ question.id }}_{{ option }}">{{ option }}</label>
-                        {% endfor %}
+                        {% if question.component_type == 'custom_single_choice' and question.custom_options %}
+                            {% for option_key, option_text in question.custom_options.items() %}
+                            <input type="radio" class="btn-check" name="question_{{ question.id }}" 
+                                   id="q{{ question.id }}_{{ option_key }}" value="{{ option_key }}" required
+                                   {% if saved_choices.get('question_' + question.id|string) == option_key %}checked{% endif %}>
+                            <label class="btn btn-outline-primary" for="q{{ question.id }}_{{ option_key }}">{{ option_text }}</label>
+                            {% endfor %}
+                        {% else %}
+                            {% for option in 'ABCDE'[:question.option_count] %}
+                            <input type="radio" class="btn-check" name="question_{{ question.id }}" 
+                                   id="q{{ question.id }}_{{ option }}" value="{{ option }}" required
+                                   {% if saved_choices.get('question_' + question.id|string) == option %}checked{% endif %}>
+                            <label class="btn btn-outline-primary" for="q{{ question.id }}_{{ option }}">{{ option }}</label>
+                            {% endfor %}
+                        {% endif %}
                     </div>
                     <div class="missing-field-alert" id="missing_{{ question.id }}">
                         请选择此问题的答案
@@ -254,6 +263,32 @@
             </div>
             {% endif %}
             
+            <!-- 自定义单选组件（在表格外单独显示） -->
+            {% set custom_questions = questions|selectattr('component_type', 'equalto', 'custom_single_choice')|list %}
+            {% if custom_questions %}
+                {% for question in custom_questions %}
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title" style="font-weight: 600; margin-bottom: 1rem; color: #2c3e50;">{{ question.content }}</h5>
+                        <div class="btn-group" role="group">
+                            {% for option_key, option_text in question.custom_options.items() %}
+                            <input type="radio" class="btn-check" name="question_{{ question.id }}" 
+                                   id="custom_q{{ question.id }}_{{ option_key }}" value="{{ option_key }}" required
+                                   {% if saved_choices.get('question_' + question.id|string) == option_key %}checked{% endif %}>
+                            <label class="btn btn-outline-primary" for="custom_q{{ question.id }}_{{ option_key }}">{{ option_text }}</label>
+                            {% endfor %}
+                        </div>
+                        <div class="missing-field-alert" id="missing_{{ question.id }}">
+                            请选择此问题的答案
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% endif %}
+            
+            <!-- 标准表格（只显示标准问题） -->
+            {% set standard_questions = questions|rejectattr('component_type', 'equalto', 'custom_single_choice')|list %}
+            {% if standard_questions %}
             <!-- 分页控制（仅移动端显示） -->
             <div id="pagination-container" style="display: none;">
                 <div class="pagination" id="pagination-controls"></div>
@@ -273,7 +308,7 @@
                             <thead>
                                 <tr>
                                     <th> </th>
-                                    {% for question in questions %}
+                                    {% for question in standard_questions %}
                                     <th>{{ question.content }}</th>
                                     {% endfor %}
                                 </tr>
@@ -282,7 +317,7 @@
                                 {% for respondent in respondents %}
                                 <tr data-respondent-id="{{ respondent.id }}" class="respondent-row">
                                     <td>{{ respondent.name }}</td>
-                                    {% for question in questions %}
+                                    {% for question in standard_questions %}
                                     <td>
                                         <div class="btn-group" role="group">
                                             {% for option in 'ABCDE'[:table_option_count] %}
@@ -304,6 +339,7 @@
                     </div>
                 </div>
             </div>
+            {% endif %}
             
             <!-- 分页信息 -->
             <div id="pagination-info" style="display: none; text-align: center; margin: 1rem 0; color: #666;">

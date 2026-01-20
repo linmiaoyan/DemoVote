@@ -78,14 +78,14 @@ if %errorlevel% equ 0 (
     if %errorlevel% equ 0 (
         REM 本地已有提交，直接拉取
         echo [步骤] 正在拉取最新代码...
-        git pull origin !REMOTE_BRANCH!
+        git pull origin "!REMOTE_BRANCH!"
     ) else (
         REM 本地没有提交，设置上游分支并拉取
         echo [步骤] 首次拉取，正在设置上游分支...
-        git pull origin !REMOTE_BRANCH! --allow-unrelated-histories
+        git pull origin "!REMOTE_BRANCH!" --allow-unrelated-histories
         if %errorlevel% equ 0 (
-            git branch -M !REMOTE_BRANCH! >nul 2>&1
-            git branch --set-upstream-to=origin/!REMOTE_BRANCH! !REMOTE_BRANCH! >nul 2>&1
+            git branch -M "!REMOTE_BRANCH!" >nul 2>&1
+            git branch --set-upstream-to=origin/"!REMOTE_BRANCH!" "!REMOTE_BRANCH!" >nul 2>&1
         )
     )
     
@@ -148,14 +148,14 @@ if %errorlevel% equ 0 (
     if %errorlevel% equ 0 (
         REM 本地已有提交，直接拉取
         echo [步骤] 正在拉取最新代码...
-        git pull origin !REMOTE_BRANCH!
+        git pull origin "!REMOTE_BRANCH!"
     ) else (
         REM 本地没有提交，设置上游分支并拉取
         echo [步骤] 首次拉取，正在设置上游分支...
-        git pull origin !REMOTE_BRANCH! --allow-unrelated-histories
+        git pull origin "!REMOTE_BRANCH!" --allow-unrelated-histories
         if %errorlevel% equ 0 (
-            git branch -M !REMOTE_BRANCH! >nul 2>&1
-            git branch --set-upstream-to=origin/!REMOTE_BRANCH! !REMOTE_BRANCH! >nul 2>&1
+            git branch -M "!REMOTE_BRANCH!" >nul 2>&1
+            git branch --set-upstream-to=origin/"!REMOTE_BRANCH!" "!REMOTE_BRANCH!" >nul 2>&1
         )
     )
     

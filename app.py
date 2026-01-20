@@ -124,6 +124,9 @@ class Question(db.Model):
     survey_id = db.Column(db.Integer, db.ForeignKey('survey.id'), nullable=False)
     content = db.Column(db.Text, nullable=False)
     option_count = db.Column(db.Integer, nullable=True)  # 单选题的选项数量
+    component_type = db.Column(db.String(50), default='standard')  # 'standard' 或 'custom_single_choice'
+    custom_options = db.Column(db.JSON, nullable=True)  # 自定义选项内容，格式: {"A": "党员", "B": "群众"}
+    order_index = db.Column(db.Integer, default=0)  # 排序索引
     created_at = db.Column(db.DateTime, default=get_current_time)
     votes = db.relationship('Vote', backref='question', lazy=True)
 
@@ -249,115 +252,39 @@ def create_survey():
     )
     db.session.add(survey)
     db.session.commit()
+    
+    # 统一重定向到编辑页面
+    return redirect(url_for('edit_survey', survey_id=survey.id))
 
-    if survey_type == 'single_choice':
-        return redirect(url_for('create_single_choice_questions', survey_id=survey.id))
-    else:
-        return redirect(url_for('create_table_questions', survey_id=survey.id))
-
-@app.route('/admin/create_single_choice_questions/<int:survey_id>', methods=['GET', 'POST'])
+@app.route('/admin/create_single_choice_questions/<int:survey_id>')
 def create_single_choice_questions(survey_id):
+    """旧路由：重定向到统一的编辑页面"""
     guard = ensure_admin_session()
     if guard:
         return guard
     
-    survey = Survey.query.get_or_404(survey_id)
-    
-    if request.method == 'POST':
-        action = request.form.get('action')
-        if action == 'add_single':
-            content = request.form.get('content')
-            option_count = int(request.form.get('option_count', 4))
-            
-            if content:
-                question = Question(
-                    survey_id=survey_id,
-                    content=content,
-                    option_count=option_count
-                )
-                db.session.add(question)
-                db.session.commit()
-                flash('问题添加成功', 'success')
-            else:
-                flash('问题内容不能为空', 'danger')
-        elif action == 'import_list':
-            question_list_text = request.form.get('question_list')
-            option_count_batch = int(request.form.get('option_count_batch', 4))
-            
-            if question_list_text:
-                questions_content = [q.strip() for q in question_list_text.split('\n') if q.strip()]
-                for content in questions_content:
-                    question = Question(
-                        survey_id=survey.id,
-                        content=content,
-                        option_count=option_count_batch
-                    )
-                    db.session.add(question)
-                db.session.commit()
-                flash(f'{len(questions_content)}个问题已成功导入', 'success')
-            else:
-                flash('导入列表不能为空', 'danger')
-    
-    questions = Question.query.filter_by(survey_id=survey_id).all()
-    return render_template('create_single_choice.html', survey=survey, questions=questions)
+    # 统一重定向到新的编辑页面
+    return redirect(url_for('edit_survey', survey_id=survey_id))
 
-@app.route('/admin/create_table_questions/<int:survey_id>', methods=['GET', 'POST'])
+@app.route('/admin/create_table_questions/<int:survey_id>', methods=['GET'])
 def create_table_questions(survey_id):
+    """旧路由：重定向到统一的编辑页面"""
     guard = ensure_admin_session()
     if guard:
         return guard
     
-    survey = Survey.query.get_or_404(survey_id)
-    
-    if request.method == 'POST':
-        content = request.form.get('content')
-        
-        if content:
-            question = Question(
-                survey_id=survey_id,
-                content=content,
-                option_count=None
-            )
-            db.session.add(question)
-            db.session.commit()
-            flash('问题添加成功', 'success')
-    
-    questions = Question.query.filter_by(survey_id=survey_id).all()
-    return render_template('create_table.html', survey=survey, questions=questions)
+    # 统一重定向到新的编辑页面
+    return redirect(url_for('edit_survey', survey_id=survey_id))
 
-@app.route('/admin/manage_table_respondents/<int:survey_id>', methods=['GET', 'POST'])
+@app.route('/admin/manage_table_respondents/<int:survey_id>', methods=['GET'])
 def manage_table_respondents(survey_id):
+    """旧路由：重定向到统一的编辑页面"""
     guard = ensure_admin_session()
     if guard:
         return guard
-
-    survey = Survey.query.get_or_404(survey_id)
-
-    if request.method == 'POST':
-        action = request.form.get('action')
-        if action == 'add_single':
-            name = request.form.get('name')
-            if name:
-                respondent = TableRespondent(survey_id=survey_id, name=name)
-                db.session.add(respondent)
-                db.session.commit()
-                flash('人名添加成功', 'success')
-            else:
-                flash('人名不能为空', 'danger')
-        elif action == 'import_list':
-            name_list_text = request.form.get('name_list')
-            if name_list_text:
-                names = [n.strip() for n in name_list_text.split('\n') if n.strip()]
-                for name in names:
-                    respondent = TableRespondent(survey_id=survey_id, name=name)
-                    db.session.add(respondent)
-                db.session.commit()
-                flash(f'{len(names)}个人名已成功导入', 'success')
-            else:
-                flash('导入列表不能为空', 'danger')
-
-    respondents = TableRespondent.query.filter_by(survey_id=survey_id).all()
-    return render_template('manage_table_respondents.html', survey=survey, respondents=respondents)
+    
+    # 统一重定向到新的编辑页面
+    return redirect(url_for('edit_survey', survey_id=survey_id))
 
 @app.route('/admin/generate_qr/<int:survey_id>', methods=['POST'])
 def generate_qr(survey_id):
@@ -497,7 +424,7 @@ def preview_survey(survey_id):
         return guard
     
     survey = Survey.query.get_or_404(survey_id)
-    questions = Question.query.filter_by(survey_id=survey_id).order_by(Question.id).all()
+    questions = Question.query.filter_by(survey_id=survey_id).order_by(Question.order_index, Question.id).all()
     
     # 如果是表格问卷，获取所有受访者
     respondents = []
@@ -522,7 +449,7 @@ def preview_survey(survey_id):
 @login_required
 def vote(survey_id):
     survey = Survey.query.get_or_404(survey_id)
-    questions = Question.query.filter_by(survey_id=survey_id).all()
+    questions = Question.query.filter_by(survey_id=survey_id).order_by(Question.order_index, Question.id).all()
     
     respondents = []
     if survey.type == 'table':
@@ -557,11 +484,12 @@ def set_option_limits(survey_id):
     if survey.type == 'table':
         # 表格型问卷：只允许设置table_option_count范围内的选项
         available_options = 'ABCDE'[:survey.table_option_count]
-        redirect_url = url_for('create_table_questions', survey_id=survey_id)
     else:
         # 单选题问卷：允许设置所有选项
         available_options = 'ABCDE'
-        redirect_url = url_for('create_single_choice_questions', survey_id=survey_id)
+    
+    # 统一重定向到编辑页面
+    redirect_url = url_for('edit_survey', survey_id=survey_id)
     
     # 获取选项限制
     option_limits = {}
@@ -628,6 +556,11 @@ def save_vote_to_db(vote_data, retry_count=0):
                 vote = Vote(user_id=user_id, question_id=q_id, score=score)
                 session.add(vote)
         elif survey.type == 'table':
+            # 保存自定义单选组件的投票（没有table_respondent_id）
+            for q_id, score in vote_data['single_choice_votes']:
+                vote = Vote(user_id=user_id, question_id=q_id, score=score)
+                session.add(vote)
+            # 保存标准表格问题的投票（有table_respondent_id）
             for q_id, respondent_id, score in vote_data['table_votes']:
                 vote = Vote(user_id=user_id, question_id=q_id, table_respondent_id=respondent_id, score=score)
                 session.add(vote)
@@ -669,6 +602,11 @@ def submit_vote(survey_id):
         if 'subjective_answer' in request.form:
             saved_choices['subjective_answer'] = request.form.get('subjective_answer', '')
     elif survey.type == 'table':
+        # 保存自定义单选组件的选择
+        for question_id, score in request.form.items():
+            if question_id.startswith('question_'):
+                saved_choices[question_id] = score
+        # 保存标准表格问题的选择
         for key, score in request.form.items():
             if key.startswith('vote_'):
                 saved_choices[key] = score
@@ -680,35 +618,69 @@ def submit_vote(survey_id):
     
     # 校验逻辑
     if survey.type == 'single_choice':
-        questions = Question.query.filter_by(survey_id=survey_id).all()
+        questions = Question.query.filter_by(survey_id=survey_id).order_by(Question.order_index, Question.id).all()
         for question in questions:
             if f'question_{question.id}' not in request.form or not request.form[f'question_{question.id}']:
                 flash('请完成所有问题后再进行提交', 'danger')
                 return redirect(url_for('vote', survey_id=survey_id))
         if survey.option_limits:
+            # 只统计标准问题的选项，不统计自定义组件
+            # 自定义组件的判断：component_type为custom_single_choice 或 custom_options不为空
+            standard_question_ids = {
+                q.id for q in questions 
+                if q.component_type != 'custom_single_choice' and not q.custom_options
+            }
             option_counts = {}
             for question_id, score in request.form.items():
                 if question_id.startswith('question_'):
-                    option = score
-                    option_counts[option] = option_counts.get(option, 0) + 1
+                    q_id = int(question_id.split('_')[1])
+                    # 只有标准问题的选项才计入限制
+                    if q_id in standard_question_ids:
+                        option = score
+                        option_counts[option] = option_counts.get(option, 0) + 1
             for option, limit in survey.option_limits.items():
                 if option_counts.get(option, 0) > limit:
                     flash(f'选项 {option} 的选择次数超过了限制 ({limit}次)', 'danger')
                     return redirect(url_for('vote', survey_id=survey_id))
     elif survey.type == 'table':
-        questions = Question.query.filter_by(survey_id=survey_id).all()
+        questions = Question.query.filter_by(survey_id=survey_id).order_by(Question.order_index, Question.id).all()
         respondents = TableRespondent.query.filter_by(survey_id=survey_id).all()
-        for question in questions:
+        
+        # 分别检查自定义组件和标准问题
+        # 自定义组件的判断：component_type为custom_single_choice 或 custom_options不为空
+        custom_questions = [
+            q for q in questions 
+            if q.component_type == 'custom_single_choice' or q.custom_options
+        ]
+        standard_questions = [
+            q for q in questions 
+            if q.component_type != 'custom_single_choice' and not q.custom_options
+        ]
+        
+        # 检查自定义组件（作为单选题）
+        for question in custom_questions:
+            if f'question_{question.id}' not in request.form or not request.form[f'question_{question.id}']:
+                flash('请完成所有问题后再进行提交', 'danger')
+                return redirect(url_for('vote', survey_id=survey_id))
+        
+        # 检查标准表格问题
+        for question in standard_questions:
             for respondent in respondents:
                 if f'vote_{question.id}_{respondent.id}' not in request.form or not request.form[f'vote_{question.id}_{respondent.id}']:
                     flash('请完成所有问题后再进行提交', 'danger')
                     return redirect(url_for('vote', survey_id=survey_id))
+        
         if survey.option_limits:
+            # 只统计标准问题的选项，不统计自定义组件
             option_counts = {}
             for key, score in request.form.items():
                 if key.startswith('vote_'):
-                    option = score
-                    option_counts[option] = option_counts.get(option, 0) + 1
+                    parts = key.split('_')
+                    q_id = int(parts[1])
+                    # 只有标准问题的选项才计入限制
+                    if q_id in [q.id for q in standard_questions]:
+                        option = score
+                        option_counts[option] = option_counts.get(option, 0) + 1
             for option, limit in survey.option_limits.items():
                 if option_counts.get(option, 0) > limit:
                     flash(f'选项 {option} 的选择次数超过了限制 ({limit}次)', 'danger')
@@ -729,6 +701,13 @@ def submit_vote(survey_id):
                 q_id = int(question_id.split('_')[1])
                 vote_data['single_choice_votes'].append((q_id, score))
     elif survey.type == 'table':
+        # 处理自定义单选组件（以单选题形式提交）
+        for question_id, score in request.form.items():
+            if question_id.startswith('question_'):
+                q_id = int(question_id.split('_')[1])
+                vote_data['single_choice_votes'].append((q_id, score))
+        
+        # 处理标准表格问题
         for key, score in request.form.items():
             if key.startswith('vote_'):
                 parts = key.split('_')
@@ -776,16 +755,16 @@ def view_results(survey_id):
                 'time': vote.created_at
             })
     elif survey.type == 'table':
-        votes = Vote.query.join(Question).join(TableRespondent).filter(
-            Question.survey_id == survey_id, 
-            TableRespondent.survey_id == survey_id
+        # 使用 outerjoin 以包含自定义单选组件的投票（没有 table_respondent_id 的投票）
+        votes = Vote.query.join(Question).outerjoin(TableRespondent).filter(
+            Question.survey_id == survey_id
         ).order_by(Vote.created_at.desc()).all()
         
         for vote in votes:
             votes_data.append({
                 'user': vote.user.username,
                 'question': vote.question.content,
-                'respondent': vote.table_respondent.name if vote.table_respondent else None,
+                'respondent': vote.table_respondent.name if vote.table_respondent else '-',
                 'option': vote.score,
                 'time': vote.created_at
             })
@@ -837,16 +816,16 @@ def download_results(survey_id):
                 '时间': vote.created_at
             })
     elif survey.type == 'table':
-        votes = Vote.query.join(Question).join(TableRespondent).filter(
-            Question.survey_id == survey_id, 
-            TableRespondent.survey_id == survey_id
+        # 使用 outerjoin 以包含自定义单选组件的投票（没有 table_respondent_id 的投票）
+        votes = Vote.query.join(Question).outerjoin(TableRespondent).filter(
+            Question.survey_id == survey_id
         ).all()
         
         for vote in votes:
             data.append({
                 '用户': vote.user.username,
                 '问题': vote.question.content.replace(' ', '-'),  # 替换空格为连字符
-                '人名': vote.table_respondent.name,
+                '人名': vote.table_respondent.name if vote.table_respondent else '-',
                 '选项': vote.score,
                 '时间': vote.created_at
             })
@@ -1002,12 +981,15 @@ def copy_survey(survey_id):
         db.session.flush()  # 获取新问卷的ID
         
         # 复制所有问题
-        original_questions = Question.query.filter_by(survey_id=survey_id).all()
+        original_questions = Question.query.filter_by(survey_id=survey_id).order_by(Question.order_index, Question.id).all()
         for orig_question in original_questions:
             new_question = Question(
                 survey_id=new_survey.id,
                 content=orig_question.content,
-                option_count=orig_question.option_count
+                option_count=orig_question.option_count,
+                component_type=orig_question.component_type,
+                custom_options=orig_question.custom_options.copy() if orig_question.custom_options else None,
+                order_index=orig_question.order_index
             )
             db.session.add(new_question)
         
@@ -1057,28 +1039,148 @@ def delete_survey(survey_id):
         
     return redirect(url_for('admin'))
 
-@app.route('/admin/edit_survey_title/<int:survey_id>', methods=['POST'])
-def edit_survey_title(survey_id):
-    guard = ensure_admin_session()
-    if guard:
-        return guard
-    survey = Survey.query.get_or_404(survey_id)
-    new_title = request.form.get('new_title')
-    if new_title:
-        survey.name = new_title
-        db.session.commit()
-        flash('问卷标题已更新', 'success')
-    else:
-        flash('标题不能为空', 'danger')
-    return redirect(url_for('admin'))
-
-@app.route('/admin/edit_survey/<int:survey_id>')
+@app.route('/admin/edit_survey/<int:survey_id>', methods=['GET', 'POST'])
 def edit_survey(survey_id):
     guard = ensure_admin_session()
     if guard:
         return guard
     survey = Survey.query.get_or_404(survey_id)
-    questions = Question.query.filter_by(survey_id=survey_id).order_by(Question.id).all()
+    
+    if request.method == 'POST':
+        action = request.form.get('action')
+        
+        # 问卷型问题的处理
+        if survey.type == 'single_choice':
+            if action == 'import_list':
+                # 批量添加标准问题
+                question_list_text = request.form.get('question_list')
+                option_count_batch = int(request.form.get('option_count_batch', 4))
+                
+                if question_list_text:
+                    max_order = db.session.query(db.func.max(Question.order_index)).filter_by(survey_id=survey_id).scalar() or 0
+                    questions_content = [q.strip() for q in question_list_text.split('\n') if q.strip()]
+                    for idx, content in enumerate(questions_content):
+                        question = Question(
+                            survey_id=survey.id,
+                            content=content,
+                            option_count=option_count_batch,
+                            component_type='standard',
+                            order_index=max_order + idx + 1
+                        )
+                        db.session.add(question)
+                    db.session.commit()
+                    flash(f'{len(questions_content)}个问题已成功导入', 'success')
+                else:
+                    flash('导入列表不能为空', 'danger')
+            elif action == 'add_custom_component':
+                # 添加自定义单选组件（支持动态选项）
+                content = request.form.get('custom_question_content')
+                
+                if content:
+                    max_order = db.session.query(db.func.max(Question.order_index)).filter_by(survey_id=survey_id).scalar() or 0
+                    
+                    # 收集自定义选项（使用逆序字母Z、Y、X...避免与标准选项A、B、C冲突）
+                    custom_options = {}
+                    options_letters = 'ZYXWVUTSRQPONMLKJIHGFEDCBA'  # 逆序字母
+                    for letter in options_letters:
+                        option_value = request.form.get(f'option_{letter}', '').strip()
+                        if option_value:
+                            custom_options[letter] = option_value
+                    
+                    if not custom_options:
+                        flash('至少需要添加一个选项', 'danger')
+                    else:
+                        question = Question(
+                            survey_id=survey_id,
+                            content=content,
+                            option_count=len(custom_options),
+                            component_type='custom_single_choice',
+                            custom_options=custom_options,
+                            order_index=max_order + 1
+                        )
+                        db.session.add(question)
+                        db.session.commit()
+                        flash('自定义单选组件添加成功', 'success')
+                else:
+                    flash('题目内容不能为空', 'danger')
+        
+        # 表格型问题的处理
+        elif survey.type == 'table':
+            if action == 'add_custom_component':
+                # 添加自定义单选组件（支持动态选项）
+                content = request.form.get('custom_question_content')
+                
+                if content:
+                    max_order = db.session.query(db.func.max(Question.order_index)).filter_by(survey_id=survey_id).scalar() or 0
+                    
+                    # 收集自定义选项（使用逆序字母Z、Y、X...避免与标准选项A、B、C冲突）
+                    custom_options = {}
+                    options_letters = 'ZYXWVUTSRQPONMLKJIHGFEDCBA'  # 逆序字母
+                    for letter in options_letters:
+                        option_value = request.form.get(f'option_{letter}', '').strip()
+                        if option_value:
+                            custom_options[letter] = option_value
+                    
+                    if not custom_options:
+                        flash('至少需要添加一个选项', 'danger')
+                    else:
+                        question = Question(
+                            survey_id=survey_id,
+                            content=content,
+                            option_count=len(custom_options),
+                            component_type='custom_single_choice',
+                            custom_options=custom_options,
+                            order_index=max_order + 1
+                        )
+                        db.session.add(question)
+                        db.session.commit()
+                        flash('自定义单选组件添加成功', 'success')
+                else:
+                    flash('题目内容不能为空', 'danger')
+            elif action == 'add_question':
+                # 添加标准横轴问题
+                content = request.form.get('content')
+                
+                if content:
+                    max_order = db.session.query(db.func.max(Question.order_index)).filter_by(survey_id=survey_id).scalar() or 0
+                    question = Question(
+                        survey_id=survey_id,
+                        content=content,
+                        option_count=None,
+                        component_type='standard',
+                        order_index=max_order + 1
+                    )
+                    db.session.add(question)
+                    db.session.commit()
+                    flash('横轴问题添加成功', 'success')
+                else:
+                    flash('问题内容不能为空', 'danger')
+            elif action == 'add_respondent':
+                # 添加人名
+                name = request.form.get('name')
+                if name:
+                    respondent = TableRespondent(survey_id=survey_id, name=name)
+                    db.session.add(respondent)
+                    db.session.commit()
+                    flash('人名添加成功', 'success')
+                else:
+                    flash('人名不能为空', 'danger')
+            elif action == 'import_respondents':
+                # 批量导入人名
+                name_list_text = request.form.get('name_list')
+                if name_list_text:
+                    names = [n.strip() for n in name_list_text.split('\n') if n.strip()]
+                    for name in names:
+                        respondent = TableRespondent(survey_id=survey_id, name=name)
+                        db.session.add(respondent)
+                    db.session.commit()
+                    flash(f'{len(names)}个人名已成功导入', 'success')
+                else:
+                    flash('导入列表不能为空', 'danger')
+        
+        return redirect(url_for('edit_survey', survey_id=survey_id))
+    
+    questions = Question.query.filter_by(survey_id=survey_id).order_by(Question.order_index, Question.id).all()
     respondents = []
     if survey.type == 'table':
         respondents = TableRespondent.query.filter_by(survey_id=survey_id).order_by(TableRespondent.id).all()
@@ -1222,6 +1324,55 @@ def batch_delete_questions():
     
     return redirect(url_for('edit_survey', survey_id=survey_id) if survey_id else url_for('admin'))
 
+@app.route('/admin/move_question/<int:question_id>/<direction>', methods=['POST'])
+def move_question(question_id, direction):
+    """移动问题顺序（上移、下移、置顶、置底）"""
+    guard = ensure_admin_session()
+    if guard:
+        return guard
+    try:
+        question = Question.query.get_or_404(question_id)
+        survey_id = question.survey_id
+        
+        # 获取同一问卷的所有问题，按order_index排序
+        questions = Question.query.filter_by(survey_id=survey_id).order_by(Question.order_index, Question.id).all()
+        
+        # 找到当前问题的索引
+        current_index = questions.index(question)
+        
+        if direction == 'up' and current_index > 0:
+            # 上移：与上一个问题交换order_index
+            questions[current_index].order_index, questions[current_index - 1].order_index = \
+                questions[current_index - 1].order_index, questions[current_index].order_index
+        elif direction == 'down' and current_index < len(questions) - 1:
+            # 下移：与下一个问题交换order_index
+            questions[current_index].order_index, questions[current_index + 1].order_index = \
+                questions[current_index + 1].order_index, questions[current_index].order_index
+        elif direction == 'top' and current_index > 0:
+            # 置顶：将当前问题移到第一位
+            current_order = question.order_index
+            # 将前面所有问题的order_index+1
+            for i in range(current_index):
+                questions[i].order_index = questions[i].order_index + 1
+            # 当前问题设为最小的order_index
+            question.order_index = questions[0].order_index - 1 if current_index > 0 else 0
+        elif direction == 'bottom' and current_index < len(questions) - 1:
+            # 置底：将当前问题移到最后一位
+            current_order = question.order_index
+            # 将后面所有问题的order_index-1
+            for i in range(current_index + 1, len(questions)):
+                questions[i].order_index = questions[i].order_index - 1
+            # 当前问题设为最大的order_index
+            question.order_index = questions[-1].order_index + 1
+        else:
+            return {'success': False, 'message': '无法移动'}, 400
+        
+        db.session.commit()
+        return {'success': True, 'message': '移动成功'}, 200
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f'移动问题失败: {e}')
+        return {'success': False, 'message': f'移动失败: {str(e)}'}, 500
 
 if __name__ == '__main__':
     # 配置日志
@@ -1237,15 +1388,41 @@ if __name__ == '__main__':
         try:
             from sqlalchemy import inspect, text
             inspector = inspect(db.engine)
-            columns = [col['name'] for col in inspector.get_columns('survey')]
+            
+            # 检查 survey 表的列
+            survey_columns = [col['name'] for col in inspector.get_columns('survey')]
             
             # 检查并添加 enable_quick_fill 列（如果不存在）
-            if 'enable_quick_fill' not in columns:
+            if 'enable_quick_fill' not in survey_columns:
                 logger.info("检测到数据库需要迁移：添加 enable_quick_fill 列")
                 # SQLite 中 BOOLEAN 存储为 INTEGER (0 或 1)
                 db.session.execute(text('ALTER TABLE survey ADD COLUMN enable_quick_fill INTEGER DEFAULT 1'))
                 db.session.commit()
                 logger.info("数据库迁移完成：已添加 enable_quick_fill 列")
+            
+            # 检查 question 表的列
+            question_columns = [col['name'] for col in inspector.get_columns('question')]
+            
+            # 检查并添加 component_type 列（如果不存在）
+            if 'component_type' not in question_columns:
+                logger.info("检测到数据库需要迁移：添加 component_type 列")
+                db.session.execute(text("ALTER TABLE question ADD COLUMN component_type VARCHAR(50) DEFAULT 'standard'"))
+                db.session.commit()
+                logger.info("数据库迁移完成：已添加 component_type 列")
+            
+            # 检查并添加 custom_options 列（如果不存在）
+            if 'custom_options' not in question_columns:
+                logger.info("检测到数据库需要迁移：添加 custom_options 列")
+                db.session.execute(text('ALTER TABLE question ADD COLUMN custom_options TEXT'))
+                db.session.commit()
+                logger.info("数据库迁移完成：已添加 custom_options 列")
+            
+            # 检查并添加 order_index 列（如果不存在）
+            if 'order_index' not in question_columns:
+                logger.info("检测到数据库需要迁移：添加 order_index 列")
+                db.session.execute(text('ALTER TABLE question ADD COLUMN order_index INTEGER DEFAULT 0'))
+                db.session.commit()
+                logger.info("数据库迁移完成：已添加 order_index 列")
         except Exception as e:
             logger.warning(f"数据库迁移检查失败（可能是新数据库）: {e}")
             db.session.rollback()
@@ -1271,10 +1448,8 @@ if __name__ == '__main__':
     
     # 在控制台醒目输出管理员入口地址
     print("\n" + "="*60)
-    print("="*60)
     print(f"  管理员登录入口地址:")
     print(f"  {admin_url}")
-    print("="*60)
     print("="*60 + "\n")
     
     app.run(host=HOST, port=PORT, debug=DEBUG, use_reloader=False)
