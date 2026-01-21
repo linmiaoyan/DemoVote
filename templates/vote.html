@@ -198,7 +198,8 @@
             <!-- 单选题问卷 -->
             <!-- 快速填写按钮（圆形悬浮显示） -->
             {% if enable_quick_fill %}
-            <button type="button" id="quick-fill-btn" class="quick-fill-btn" title="按住自动选择第一个选项">按住快填</button>
+            <button type="button" id="quick-fill-btn-a" class="quick-fill-btn quick-fill-btn-a" title="按住自动选择第一个选项">按住快填A</button>
+            <button type="button" id="quick-fill-btn-b" class="quick-fill-btn quick-fill-btn-b" title="按住自动选择第二个选项">按住快填B</button>
             {% endif %}
             
             {% if survey.option_limits %}
@@ -249,7 +250,8 @@
             <!-- 表格问卷 -->
             <!-- 快速打分按钮（圆形悬浮显示） -->
             {% if enable_quick_fill %}
-            <button type="button" id="quick-score-btn" class="quick-fill-btn" title="按住自动选择第一个选项">按住快填</button>
+            <button type="button" id="quick-score-btn-a" class="quick-fill-btn quick-fill-btn-a" title="按住自动选择第一个选项">按住快填A</button>
+            <button type="button" id="quick-score-btn-b" class="quick-fill-btn quick-fill-btn-b" title="按住自动选择第二个选项">按住快填B</button>
             {% endif %}
             
             {% if survey.option_limits %}
@@ -679,11 +681,15 @@ document.addEventListener('DOMContentLoaded', function() {
 <script>
 // 单选题问卷快速填写功能
 document.addEventListener('DOMContentLoaded', function() {
-    const quickFillBtn = document.getElementById('quick-fill-btn');
-    if (quickFillBtn) {
+    const quickFillBtnA = document.getElementById('quick-fill-btn-a');
+    const quickFillBtnB = document.getElementById('quick-fill-btn-b');
+    
+    if (quickFillBtnA || quickFillBtnB) {
         let isQuickFilling = false;
         let currentQuestionIndex = 0;
         let fillTimeout = null;
+        let currentOptionIndex = 0; // 0表示选择第一个选项，1表示选择第二个选项
+        let currentBtn = null; // 当前被按下的按钮
         
         // 获取所有问题卡片（确保获取到所有包含radio的卡片）
         const questionCards = Array.from(document.querySelectorAll('.card.mb-3')).filter(card => {
@@ -693,7 +699,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         console.log('找到问题卡片数量:', questionCards.length);
         
-        function autoSelectFirstOption() {
+        function autoSelectOption() {
             if (!isQuickFilling) {
                 if (fillTimeout) {
                     clearTimeout(fillTimeout);
@@ -710,34 +716,39 @@ document.addEventListener('DOMContentLoaded', function() {
             
             const currentCard = questionCards[currentQuestionIndex];
             if (currentCard) {
-                // 查找当前问题的第一个选项（第一个radio）
-                const firstRadio = currentCard.querySelector('input[type="radio"]');
-                if (firstRadio && !firstRadio.checked) {
-                    // 先设置checked属性
-                    firstRadio.checked = true;
-                    
-                    // 找到对应的label并触发点击（这样会更新样式）
-                    const labelId = firstRadio.id;
-                    const label = document.querySelector(`label[for="${labelId}"]`);
-                    if (label) {
-                        // 触发label的点击事件来更新样式
-                        label.click();
+                // 获取当前问题的所有radio选项
+                const radios = currentCard.querySelectorAll('input[type="radio"]');
+                
+                // 选择指定索引的选项（currentOptionIndex: 0表示第一个，1表示第二个）
+                if (radios.length > currentOptionIndex) {
+                    const targetRadio = radios[currentOptionIndex];
+                    if (targetRadio && !targetRadio.checked) {
+                        // 先设置checked属性
+                        targetRadio.checked = true;
+                        
+                        // 找到对应的label并触发点击（这样会更新样式）
+                        const labelId = targetRadio.id;
+                        const label = document.querySelector(`label[for="${labelId}"]`);
+                        if (label) {
+                            // 触发label的点击事件来更新样式
+                            label.click();
+                        }
+                        
+                        // 触发change事件，更新选项计数等
+                        const changeEvent = new Event('change', { bubbles: true });
+                        targetRadio.dispatchEvent(changeEvent);
+                        
+                        // 触发input事件
+                        const inputEvent = new Event('input', { bubbles: true });
+                        targetRadio.dispatchEvent(inputEvent);
+                        
+                        console.log('已选择问题', currentQuestionIndex + 1, '的选项', targetRadio.value);
+                        
+                        // 滚动到当前问题（延迟一点让选择生效）
+                        setTimeout(() => {
+                            currentCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }, 50);
                     }
-                    
-                    // 触发change事件，更新选项计数等
-                    const changeEvent = new Event('change', { bubbles: true });
-                    firstRadio.dispatchEvent(changeEvent);
-                    
-                    // 触发input事件
-                    const inputEvent = new Event('input', { bubbles: true });
-                    firstRadio.dispatchEvent(inputEvent);
-                    
-                    console.log('已选择问题', currentQuestionIndex + 1, '的选项', firstRadio.value);
-                    
-                    // 滚动到当前问题（延迟一点让选择生效）
-                    setTimeout(() => {
-                        currentCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    }, 50);
                 }
                 
                 // 移动到下一个问题
@@ -748,7 +759,7 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // 继续下一个选择（稍快一些，但不是秒选）
             if (isQuickFilling) {
-                fillTimeout = setTimeout(autoSelectFirstOption, 150);
+                fillTimeout = setTimeout(autoSelectOption, 150);
             }
         }
         
@@ -771,10 +782,10 @@ document.addEventListener('DOMContentLoaded', function() {
             return -1; // 所有问题都已填写
         }
         
-        function startQuickFilling() {
+        function startQuickFilling(optionIndex, btn) {
             if (isQuickFilling) return;
             
-            console.log('开始快速填写');
+            console.log('开始快速填写，选项索引:', optionIndex);
             
             // 查找第一个未填的问题，从未填的开始
             const firstUnfilledIndex = findFirstUnfilledQuestion();
@@ -785,8 +796,10 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             
             isQuickFilling = true;
-            quickFillBtn.classList.add('active');
-            quickFillBtn.textContent = '填写中';
+            currentOptionIndex = optionIndex;
+            currentBtn = btn;
+            btn.classList.add('active');
+            btn.textContent = '填写中';
             
             // 从未填的问题开始
             currentQuestionIndex = firstUnfilledIndex;
@@ -794,14 +807,21 @@ document.addEventListener('DOMContentLoaded', function() {
             console.log('从未填的问题开始:', currentQuestionIndex + 1);
             
             // 开始自动选择
-            autoSelectFirstOption();
+            autoSelectOption();
         }
         
         function stopQuickFilling() {
             console.log('停止快速填写');
             isQuickFilling = false;
-            quickFillBtn.classList.remove('active');
-            quickFillBtn.textContent = '按住快填';
+            if (currentBtn) {
+                currentBtn.classList.remove('active');
+                if (currentBtn === quickFillBtnA) {
+                    currentBtn.textContent = '按住快填A';
+                } else if (currentBtn === quickFillBtnB) {
+                    currentBtn.textContent = '按住快填B';
+                }
+                currentBtn = null;
+            }
             
             if (fillTimeout) {
                 clearTimeout(fillTimeout);
@@ -809,69 +829,135 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
         
-        // 防止文本选择
-        quickFillBtn.addEventListener('selectstart', function(e) {
-            e.preventDefault();
-            return false;
-        });
+        // 为按钮A添加事件监听
+        if (quickFillBtnA) {
+            // 防止文本选择
+            quickFillBtnA.addEventListener('selectstart', function(e) {
+                e.preventDefault();
+                return false;
+            });
+            
+            quickFillBtnA.addEventListener('dragstart', function(e) {
+                e.preventDefault();
+                return false;
+            });
+            
+            // 触摸事件处理
+            quickFillBtnA.addEventListener('touchstart', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                startQuickFilling(0, quickFillBtnA);
+            }, { passive: false });
+            
+            quickFillBtnA.addEventListener('touchend', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                stopQuickFilling();
+            }, { passive: false });
+            
+            quickFillBtnA.addEventListener('touchcancel', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                stopQuickFilling();
+            }, { passive: false });
+            
+            // 鼠标事件处理
+            quickFillBtnA.addEventListener('mousedown', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                startQuickFilling(0, quickFillBtnA);
+            });
+            
+            quickFillBtnA.addEventListener('mouseup', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                stopQuickFilling();
+            });
+            
+            quickFillBtnA.addEventListener('mouseleave', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                stopQuickFilling();
+            });
+            
+            quickFillBtnA.addEventListener('contextmenu', function(e) {
+                e.preventDefault();
+                return false;
+            });
+        }
         
-        quickFillBtn.addEventListener('dragstart', function(e) {
-            e.preventDefault();
-            return false;
-        });
-        
-        // 触摸事件处理
-        quickFillBtn.addEventListener('touchstart', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            e.stopImmediatePropagation();
-            startQuickFilling();
-        }, { passive: false });
-        
-        quickFillBtn.addEventListener('touchend', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            e.stopImmediatePropagation();
-            stopQuickFilling();
-        }, { passive: false });
-        
-        quickFillBtn.addEventListener('touchcancel', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            e.stopImmediatePropagation();
-            stopQuickFilling();
-        }, { passive: false });
-        
-        // 鼠标事件处理
-        quickFillBtn.addEventListener('mousedown', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            e.stopImmediatePropagation();
-            startQuickFilling();
-        });
-        
-        quickFillBtn.addEventListener('mouseup', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            e.stopImmediatePropagation();
-            stopQuickFilling();
-        });
-        
-        quickFillBtn.addEventListener('mouseleave', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            e.stopImmediatePropagation();
-            stopQuickFilling();
-        });
-        
-        quickFillBtn.addEventListener('contextmenu', function(e) {
-            e.preventDefault();
-            return false;
-        });
+        // 为按钮B添加事件监听
+        if (quickFillBtnB) {
+            // 防止文本选择
+            quickFillBtnB.addEventListener('selectstart', function(e) {
+                e.preventDefault();
+                return false;
+            });
+            
+            quickFillBtnB.addEventListener('dragstart', function(e) {
+                e.preventDefault();
+                return false;
+            });
+            
+            // 触摸事件处理
+            quickFillBtnB.addEventListener('touchstart', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                startQuickFilling(1, quickFillBtnB);
+            }, { passive: false });
+            
+            quickFillBtnB.addEventListener('touchend', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                stopQuickFilling();
+            }, { passive: false });
+            
+            quickFillBtnB.addEventListener('touchcancel', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                stopQuickFilling();
+            }, { passive: false });
+            
+            // 鼠标事件处理
+            quickFillBtnB.addEventListener('mousedown', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                startQuickFilling(1, quickFillBtnB);
+            });
+            
+            quickFillBtnB.addEventListener('mouseup', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                stopQuickFilling();
+            });
+            
+            quickFillBtnB.addEventListener('mouseleave', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                stopQuickFilling();
+            });
+            
+            quickFillBtnB.addEventListener('contextmenu', function(e) {
+                e.preventDefault();
+                return false;
+            });
+        }
         
         // 防止页面滚动时误触发
         document.addEventListener('touchmove', function(e) {
-            if (isQuickFilling && e.target === quickFillBtn) {
+            if (isQuickFilling && (e.target === quickFillBtnA || e.target === quickFillBtnB)) {
                 e.preventDefault();
             }
         }, { passive: false });
@@ -887,6 +973,8 @@ document.addEventListener('DOMContentLoaded', function() {
     let currentPage = 1;
     let isQuickScoring = false;
     let quickScoreTimeout = null;
+    let currentOptionIndex = 0; // 0表示选择第一个选项，1表示选择第二个选项
+    let currentBtn = null; // 当前被按下的按钮
     
     // 检测是否为移动设备
     function isMobile() {
@@ -983,7 +1071,8 @@ document.addEventListener('DOMContentLoaded', function() {
     let currentQuestionIndex = 0;
     
     // 快速打分按钮在所有设备上都显示（悬浮）
-    const quickScoreBtn = document.getElementById('quick-score-btn');
+    const quickScoreBtnA = document.getElementById('quick-score-btn-a');
+    const quickScoreBtnB = document.getElementById('quick-score-btn-b');
     
     // 如果是移动设备，显示分页功能
     if (isMobile()) {
@@ -1005,10 +1094,10 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // 快速打分功能（所有设备都可用）
-    if (quickScoreBtn) {
+    if (quickScoreBtnA || quickScoreBtnB) {
         
         // 简化的自动选择函数：按表格自然顺序（从左到右，从上到下）填写
-        function autoSelectFirstOption() {
+        function autoSelectOption() {
             if (!isQuickScoring) {
                 if (quickScoreTimeout) {
                     clearTimeout(quickScoreTimeout);
@@ -1040,7 +1129,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     // 等待页面切换完成
                     setTimeout(() => {
                         if (isQuickScoring) {
-                            quickScoreTimeout = setTimeout(autoSelectFirstOption, 100);
+                            quickScoreTimeout = setTimeout(autoSelectOption, 100);
                         }
                     }, 100);
                     return;
@@ -1056,7 +1145,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 // 继续下一个选择
                 if (isQuickScoring) {
-                    quickScoreTimeout = setTimeout(autoSelectFirstOption, 100);
+                    quickScoreTimeout = setTimeout(autoSelectOption, 100);
                 }
                 return;
             }
@@ -1067,7 +1156,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 currentRowIndex++;
                 currentQuestionIndex = 0;
                 if (isQuickScoring) {
-                    quickScoreTimeout = setTimeout(autoSelectFirstOption, 100);
+                    quickScoreTimeout = setTimeout(autoSelectOption, 100);
                 }
                 return;
             }
@@ -1077,7 +1166,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!btnGroup) {
                 currentQuestionIndex++;
                 if (isQuickScoring) {
-                    quickScoreTimeout = setTimeout(autoSelectFirstOption, 100);
+                    quickScoreTimeout = setTimeout(autoSelectOption, 100);
                 }
                 return;
             }
@@ -1096,38 +1185,40 @@ document.addEventListener('DOMContentLoaded', function() {
                 // 已填写，跳过到下一个
                 currentQuestionIndex++;
                 if (isQuickScoring) {
-                    quickScoreTimeout = setTimeout(autoSelectFirstOption, 50);
+                    quickScoreTimeout = setTimeout(autoSelectOption, 50);
                 }
                 return;
             }
             
-            // 选择第一个选项
-            const firstRadio = btnGroup.querySelector('input[type="radio"]');
-            if (firstRadio) {
-                // 设置checked属性
-                firstRadio.checked = true;
-                
-                // 找到对应的label并触发点击（更新样式）
-                const labelId = firstRadio.id;
-                const label = btnGroup.querySelector(`label[for="${labelId}"]`);
-                if (label) {
-                    label.click();
+            // 选择指定索引的选项（currentOptionIndex: 0表示第一个，1表示第二个）
+            if (radios.length > currentOptionIndex) {
+                const targetRadio = radios[currentOptionIndex];
+                if (targetRadio) {
+                    // 设置checked属性
+                    targetRadio.checked = true;
+                    
+                    // 找到对应的label并触发点击（更新样式）
+                    const labelId = targetRadio.id;
+                    const label = btnGroup.querySelector(`label[for="${labelId}"]`);
+                    if (label) {
+                        label.click();
+                    }
+                    
+                    // 触发change事件
+                    const changeEvent = new Event('change', { bubbles: true });
+                    targetRadio.dispatchEvent(changeEvent);
+                    
+                    // 触发input事件
+                    const inputEvent = new Event('input', { bubbles: true });
+                    targetRadio.dispatchEvent(inputEvent);
+                    
+                    console.log('已选择第', currentRowIndex + 1, '行第', currentQuestionIndex + 1, '题的选项', targetRadio.value);
+                    
+                    // 滚动到当前单元格（可选，让用户看到进度）
+                    setTimeout(() => {
+                        currentCell.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }, 50);
                 }
-                
-                // 触发change事件
-                const changeEvent = new Event('change', { bubbles: true });
-                firstRadio.dispatchEvent(changeEvent);
-                
-                // 触发input事件
-                const inputEvent = new Event('input', { bubbles: true });
-                firstRadio.dispatchEvent(inputEvent);
-                
-                console.log('已选择第', currentRowIndex + 1, '行第', currentQuestionIndex + 1, '题的选项', firstRadio.value);
-                
-                // 滚动到当前单元格（可选，让用户看到进度）
-                setTimeout(() => {
-                    currentCell.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }, 50);
             }
             
             // 移动到下一个问题
@@ -1135,7 +1226,7 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // 继续下一个选择
             if (isQuickScoring) {
-                quickScoreTimeout = setTimeout(autoSelectFirstOption, 150);
+                quickScoreTimeout = setTimeout(autoSelectOption, 150);
             }
         }
         
@@ -1172,8 +1263,10 @@ document.addEventListener('DOMContentLoaded', function() {
             return null; // 所有单元格都已填写
         }
         
-        function startQuickScoring() {
+        function startQuickScoring(optionIndex, btn) {
             if (isQuickScoring) return;
+            
+            console.log('开始快速填写，选项索引:', optionIndex);
             
             // 查找第一个未填的单元格，从未填的开始
             const firstUnfilled = findFirstUnfilledCell();
@@ -1184,8 +1277,10 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             
             isQuickScoring = true;
-            quickScoreBtn.classList.add('active');
-            quickScoreBtn.textContent = '填写中';
+            currentOptionIndex = optionIndex;
+            currentBtn = btn;
+            btn.classList.add('active');
+            btn.textContent = '填写中';
             
             // 从未填的单元格开始
             currentRowIndex = firstUnfilled.rowIndex;
@@ -1205,15 +1300,22 @@ document.addEventListener('DOMContentLoaded', function() {
             // 开始自动选择
             setTimeout(() => {
                 if (isQuickScoring) {
-                    autoSelectFirstOption();
+                    autoSelectOption();
                 }
             }, 200);
         }
         
         function stopQuickScoring() {
             isQuickScoring = false;
-            quickScoreBtn.classList.remove('active');
-            quickScoreBtn.textContent = '按住快填';
+            if (currentBtn) {
+                currentBtn.classList.remove('active');
+                if (currentBtn === quickScoreBtnA) {
+                    currentBtn.textContent = '按住快填A';
+                } else if (currentBtn === quickScoreBtnB) {
+                    currentBtn.textContent = '按住快填B';
+                }
+                currentBtn = null;
+            }
             
             if (quickScoreTimeout) {
                 clearTimeout(quickScoreTimeout);
@@ -1221,69 +1323,135 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
         
-        // 防止文本选择
-        quickScoreBtn.addEventListener('selectstart', function(e) {
-            e.preventDefault();
-            return false;
-        });
+        // 为按钮A添加事件监听
+        if (quickScoreBtnA) {
+            // 防止文本选择
+            quickScoreBtnA.addEventListener('selectstart', function(e) {
+                e.preventDefault();
+                return false;
+            });
+            
+            quickScoreBtnA.addEventListener('dragstart', function(e) {
+                e.preventDefault();
+                return false;
+            });
+            
+            // 触摸事件处理
+            quickScoreBtnA.addEventListener('touchstart', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                startQuickScoring(0, quickScoreBtnA);
+            }, { passive: false });
+            
+            quickScoreBtnA.addEventListener('touchend', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                stopQuickScoring();
+            }, { passive: false });
+            
+            quickScoreBtnA.addEventListener('touchcancel', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                stopQuickScoring();
+            }, { passive: false });
+            
+            // 鼠标事件处理（用于测试）
+            quickScoreBtnA.addEventListener('mousedown', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                startQuickScoring(0, quickScoreBtnA);
+            });
+            
+            quickScoreBtnA.addEventListener('mouseup', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                stopQuickScoring();
+            });
+            
+            quickScoreBtnA.addEventListener('mouseleave', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                stopQuickScoring();
+            });
+            
+            quickScoreBtnA.addEventListener('contextmenu', function(e) {
+                e.preventDefault();
+                return false;
+            });
+        }
         
-        quickScoreBtn.addEventListener('dragstart', function(e) {
-            e.preventDefault();
-            return false;
-        });
-        
-        // 触摸事件处理
-        quickScoreBtn.addEventListener('touchstart', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            e.stopImmediatePropagation();
-            startQuickScoring();
-        }, { passive: false });
-        
-        quickScoreBtn.addEventListener('touchend', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            e.stopImmediatePropagation();
-            stopQuickScoring();
-        }, { passive: false });
-        
-        quickScoreBtn.addEventListener('touchcancel', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            e.stopImmediatePropagation();
-            stopQuickScoring();
-        }, { passive: false });
-        
-        // 鼠标事件处理（用于测试）
-        quickScoreBtn.addEventListener('mousedown', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            e.stopImmediatePropagation();
-            startQuickScoring();
-        });
-        
-        quickScoreBtn.addEventListener('mouseup', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            e.stopImmediatePropagation();
-            stopQuickScoring();
-        });
-        
-        quickScoreBtn.addEventListener('mouseleave', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            e.stopImmediatePropagation();
-            stopQuickScoring();
-        });
-        
-        quickScoreBtn.addEventListener('contextmenu', function(e) {
-            e.preventDefault();
-            return false;
-        });
+        // 为按钮B添加事件监听
+        if (quickScoreBtnB) {
+            // 防止文本选择
+            quickScoreBtnB.addEventListener('selectstart', function(e) {
+                e.preventDefault();
+                return false;
+            });
+            
+            quickScoreBtnB.addEventListener('dragstart', function(e) {
+                e.preventDefault();
+                return false;
+            });
+            
+            // 触摸事件处理
+            quickScoreBtnB.addEventListener('touchstart', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                startQuickScoring(1, quickScoreBtnB);
+            }, { passive: false });
+            
+            quickScoreBtnB.addEventListener('touchend', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                stopQuickScoring();
+            }, { passive: false });
+            
+            quickScoreBtnB.addEventListener('touchcancel', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                stopQuickScoring();
+            }, { passive: false });
+            
+            // 鼠标事件处理（用于测试）
+            quickScoreBtnB.addEventListener('mousedown', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                startQuickScoring(1, quickScoreBtnB);
+            });
+            
+            quickScoreBtnB.addEventListener('mouseup', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                stopQuickScoring();
+            });
+            
+            quickScoreBtnB.addEventListener('mouseleave', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                stopQuickScoring();
+            });
+            
+            quickScoreBtnB.addEventListener('contextmenu', function(e) {
+                e.preventDefault();
+                return false;
+            });
+        }
         
         // 防止页面滚动时误触发
         document.addEventListener('touchmove', function(e) {
-            if (isQuickScoring && e.target === quickScoreBtn) {
+            if (isQuickScoring && (e.target === quickScoreBtnA || e.target === quickScoreBtnB)) {
                 e.preventDefault();
             }
         }, { passive: false });

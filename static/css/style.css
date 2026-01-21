@@ -343,7 +343,6 @@ body {
 .quick-fill-btn {
     position: fixed;
     bottom: 30px;
-    right: 30px;
     width: 70px;
     height: 70px;
     padding: 0;
@@ -371,6 +370,15 @@ body {
     user-select: none;
     -webkit-touch-callout: none;
     -webkit-tap-highlight-color: transparent;
+}
+
+.quick-fill-btn-a {
+    right: 110px;
+}
+
+.quick-fill-btn-b {
+    right: 30px;
+    background-color: #4299e1;
 }
 
 .quick-fill-btn:active {
@@ -401,10 +409,17 @@ body {
 @media (max-width: 768px) {
     .quick-fill-btn {
         bottom: 100px;
-        right: 20px;
         width: 75px;
         height: 75px;
         font-size: 0.7rem;
+    }
+    
+    .quick-fill-btn-a {
+        right: 100px;
+    }
+    
+    .quick-fill-btn-b {
+        right: 15px;
     }
     
     .table-responsive {
